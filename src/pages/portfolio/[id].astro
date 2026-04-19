@@ -1,0 +1,74 @@
+---
+import { getCollection, render } from 'astro:content';
+import { Image } from 'astro:assets';
+
+// 1. Tell Astro which URLs to generate
+export async function getStaticPaths() {
+  const allProjects = await getCollection('portfolio');
+  
+  return allProjects.map((project) => ({
+    params: { id: project.id }, // The URL path (e.g., /portfolio/san-francisco-2026)
+    props: { project },         // Pass the project data to the HTML below
+  }));
+}
+
+// 2. Grab the specific project data for the page currently being built
+const { project } = Astro.props;
+
+// 3. Convert the markdown file into HTML we can display
+const { Content } = await render(project);
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<title>{project.data.title} | Chase Fiore</title>
+		<style>
+			body {
+				font-family: sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+			}
+			img {
+				max-width: 100%;
+				height: auto;
+				border-radius: 8px;
+				margin-bottom: 2rem;
+			}
+			.back-link {
+				display: inline-block;
+				margin-bottom: 2rem;
+				text-decoration: none;
+				color: #555;
+			}
+		</style>
+	</head>
+	<body>
+		<a href="/" class="back-link">← Back to Home</a>
+		
+		<header>
+			<h1>{project.data.title}</h1>
+			<p><em>{project.data.description}</em></p>
+		</header>
+
+		<main>
+			<pre style="background: #eee; padding: 1rem;">{JSON.stringify(project.data.coverImage, null, 2)}</pre>
+
+			{project.data.coverImage && (
+				<Image 
+					src={project.data.coverImage} 
+					alt={project.data.title} 
+					width={1200} 
+					format="webp" 
+				/>
+			)}
+
+			<article>
+				<Content />
+			</article>
+		</main>
+	</body>
+</html>

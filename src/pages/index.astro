@@ -1,11 +1,56 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+import { Image } from 'astro:assets'; // Import the image optimizer
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+const allProjects = await getCollection('portfolio');
 ---
 
-<Layout>
-	<Welcome />
-</Layout>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<title>Chase Fiore | Portfolio</title>
+		<style>
+			/* A little basic CSS to keep the giant raw image from taking over your screen */
+			img {
+				max-width: 100%;
+				height: auto;
+				border-radius: 8px;
+			}
+			li {
+				list-style: none;
+				margin-bottom: 2rem;
+				max-width: 600px;
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1>Chase Fiore</h1>
+			<p>Show Set Design & Photography</p>
+		</header>
+
+		<main>
+			<h2>Selected Works</h2>
+			<ul>
+				{allProjects.map((project) => (
+					<li>
+						<a href={`/portfolio/${project.id}/`}>
+							{project.data.coverImage && (
+								<Image 
+									src={project.data.coverImage} 
+									alt={project.data.title} 
+									width={800} 
+									format="webp" 
+								/>
+							)}
+							<h3>{project.data.title}</h3>
+							<p>{project.data.description}</p>
+						</a>
+					</li>
+				))}
+			</ul>
+		</main>
+	</body>
+</html>
