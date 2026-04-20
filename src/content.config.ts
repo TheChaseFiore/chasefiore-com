@@ -14,6 +14,30 @@ const portfolioCollection = defineCollection({
   }),
 });
 
+const lightingDesignCollection = defineCollection({
+  loader: glob({ pattern: "**/*.md", base: "./src/content/lighting-design" }),
+  schema: ({ image }) => z.object({
+    title: z.string(),
+    description: z.string(),
+    publishDate: z.date().optional(),
+    coverImage: image().optional(),
+    tags: z.array(z.string()).optional(),
+  }),
+});
+
+const drawingCollection = defineCollection({
+  loader: glob({ pattern: "**/*.md", base: "./src/content/drawing" }),
+  schema: ({ image }) => z.object({
+    title: z.string(),
+    description: z.string(),
+    publishDate: z.date().optional(),
+    coverImage: image().optional(),
+    tags: z.array(z.string()).optional(),
+  }),
+});
+
 export const collections = {
   'portfolio': portfolioCollection,
+  'lighting-design': lightingDesignCollection,
+  'drawing': drawingCollection,
 };
