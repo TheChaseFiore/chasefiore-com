@@ -1,17 +1,15 @@
-import { z, defineCollection } from 'astro:content';
+import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
+import { z } from 'zod';
 
 const portfolioCollection = defineCollection({
   loader: glob({ pattern: "**/*.md", base: "./src/content/portfolio" }),
-  
-  // 1. We added ({ image }) back in here
   schema: ({ image }) => z.object({
     title: z.string(),
     description: z.string(),
     publishDate: z.date().optional(),
-    
-    // 2. We changed this back to image()
-    coverImage: image().optional(), 
+    coverImage: image().optional(),
+    model: z.string().optional(), // path to GLB in public/, e.g. "/models/my-project.glb"
     tags: z.array(z.string()).optional(),
   }),
 });

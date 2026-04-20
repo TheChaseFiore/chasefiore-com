@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import ModelViewer from '../../components/ModelViewer.astro';
 import { getCollection, render } from 'astro:content';
 import { Image } from 'astro:assets';
 
@@ -13,12 +14,19 @@ export async function getStaticPaths() {
 
 const { project } = Astro.props;
 const { Content } = await render(project);
+const hasModel = Boolean(project.data.model);
 ---
 
 <Layout title={`${project.data.title} | Chase Fiore`} description={project.data.description}>
   <article>
-    {project.data.coverImage && (
-      <div class="cover-wrap">
+
+    <!-- 3D viewer if model field is set, otherwise fall back to cover image -->
+    {hasModel ? (
+      <div class="media-wrap model-wrap">
+        <ModelViewer modelUrl={project.data.model} height="100%" autoRotate={true} />
+      </div>
+    ) : project.data.coverImage ? (
+      <div class="media-wrap cover-wrap">
         <Image
           src={project.data.coverImage}
           alt={project.data.title}
@@ -27,7 +35,7 @@ const { Content } = await render(project);
           transition:name={`cover-${project.id}`}
         />
       </div>
-    )}
+    ) : null}
 
     <div class="content-wrap">
       <nav class="breadcrumb">
@@ -51,17 +59,24 @@ const { Content } = await render(project);
         <Content />
       </div>
     </div>
+
   </article>
 </Layout>
 
 <style>
-  article {
-    flex: 1;
+  article { flex: 1; }
+
+  /* ── Media (cover image or 3D viewer) ── */
+  .media-wrap {
+    width: 100%;
   }
 
-  /* ── Cover ── */
+  .model-wrap {
+    height: 70vh;
+    min-height: 400px;
+  }
+
   .cover-wrap {
-    width: 100%;
     max-height: 75vh;
     overflow: hidden;
   }
@@ -94,9 +109,7 @@ const { Content } = await render(project);
     transition: color 0.2s;
   }
 
-  .breadcrumb a:hover {
-    color: var(--accent);
-  }
+  .breadcrumb a:hover { color: var(--accent); }
 
   .tag {
     font-size: 0.7rem;
@@ -108,7 +121,6 @@ const { Content } = await render(project);
     border-radius: 2px;
   }
 
-  /* ── Header ── */
   .project-header {
     margin-bottom: 2.5rem;
     padding-bottom: 2.5rem;
@@ -137,50 +149,21 @@ const { Content } = await render(project);
     color: var(--text-muted);
   }
 
-  /* ── Prose ── */
   .prose {
     color: var(--text);
     line-height: 1.75;
     font-size: 1.05rem;
   }
 
-  .prose :global(h2) {
-    font-size: 1.4rem;
-    font-weight: 400;
-    margin: 2rem 0 0.75rem;
-  }
-
-  .prose :global(h3) {
-    font-size: 1.1rem;
-    font-weight: 500;
-    margin: 1.5rem 0 0.5rem;
-  }
-
-  .prose :global(p) {
-    margin-bottom: 1.25rem;
-    color: rgba(232, 232, 232, 0.85);
-  }
-
-  .prose :global(img) {
-    width: 100%;
-    border-radius: 4px;
-    margin: 2rem 0;
-  }
-
-  .prose :global(ul),
-  .prose :global(ol) {
-    padding-left: 1.5rem;
-    margin-bottom: 1.25rem;
-  }
-
-  .prose :global(li) {
-    margin-bottom: 0.4rem;
-    color: rgba(232, 232, 232, 0.85);
-  }
+  .prose :global(h2) { font-size: 1.4rem; font-weight: 400; margin: 2rem 0 0.75rem; }
+  .prose :global(h3) { font-size: 1.1rem; font-weight: 500; margin: 1.5rem 0 0.5rem; }
+  .prose :global(p)  { margin-bottom: 1.25rem; color: rgba(232, 232, 232, 0.85); }
+  .prose :global(img) { width: 100%; border-radius: 4px; margin: 2rem 0; }
+  .prose :global(ul), .prose :global(ol) { padding-left: 1.5rem; margin-bottom: 1.25rem; }
+  .prose :global(li) { margin-bottom: 0.4rem; color: rgba(232, 232, 232, 0.85); }
 
   @media (max-width: 600px) {
-    .content-wrap {
-      padding: 2rem 1rem 4rem;
-    }
+    .model-wrap { height: 55vw; min-height: 280px; }
+    .content-wrap { padding: 2rem 1rem 4rem; }
   }
 </style>

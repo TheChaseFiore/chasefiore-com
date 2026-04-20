@@ -1,0 +1,332 @@
+---
+interface Props {
+  modelUrl?: string;   // path to GLB in public/, e.g. "/models/ministry-of-magic.glb"
+  height?: string;     // CSS height value
+  autoRotate?: boolean;
+}
+
+const { modelUrl = '', height = '500px', autoRotate = true } = Astro.props;
+---
+
+<div
+  class="viewer-root"
+  style={`height: ${height}`}
+  data-model-url={modelUrl}
+  data-auto-rotate={String(autoRotate)}
+>
+  <canvas class="viewer-canvas"></canvas>
+  <slot />
+  <div class="viewer-hint">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a7 7 0 0 1 7 7v1l2 1-2 1v3l-7 4-7-4v-3L3 10l2-1V9a7 7 0 0 1 7-7z"/><path d="M12 2v18"/></svg>
+    <span>Drag · Scroll to zoom</span>
+  </div>
+</div>
+
+<script>
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+type CleanupFn = () => void;
+const cleanups = new Map<Element, CleanupFn>();
+
+function initAllViewers() {
+  document.querySelectorAll<HTMLElement>('.viewer-root:not([data-viewer-init])').forEach(el => {
+    el.setAttribute('data-viewer-init', '1');
+    const cleanup = setupViewer(el);
+    cleanups.set(el, cleanup);
+  });
+}
+
+function setupViewer(root: HTMLElement): CleanupFn {
+  const canvas = root.querySelector<HTMLCanvasElement>('.viewer-canvas')!;
+  const modelUrl = root.dataset.modelUrl ?? '';
+  const autoRotate = root.dataset.autoRotate !== 'false';
+
+  // ── Scene ──────────────────────────────────────────────────────
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0c0c0c);
+  scene.fog = new THREE.FogExp2(0x0c0c0c, 0.028);
+
+  // ── Camera ──────────────────────────────────────────────────────
+  const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 200);
+  camera.position.set(9, 5.5, 13);
+  camera.lookAt(0, 2, 0);
+
+  // ── Renderer ────────────────────────────────────────────────────
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+
+  // ── Lights ──────────────────────────────────────────────────────
+  scene.add(new THREE.AmbientLight(0x1a120a, 0.8));
+
+  const keyLight = new THREE.DirectionalLight(0xfff5e6, 3.0);
+  keyLight.position.set(6, 12, 8);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(1024, 1024);
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 40;
+  keyLight.shadow.camera.left = -12;
+  keyLight.shadow.camera.right = 12;
+  keyLight.shadow.camera.top = 12;
+  keyLight.shadow.camera.bottom = -6;
+  scene.add(keyLight);
+
+  const fillLight = new THREE.DirectionalLight(0x203050, 0.8);
+  fillLight.position.set(-8, 4, -6);
+  scene.add(fillLight);
+
+  // Stage uplights — warm gold pools
+  const uplightPositions = [[-4, 0.3, -1], [0, 0.3, -1], [4, 0.3, -1]] as const;
+  uplightPositions.forEach(([x, y, z]) => {
+    const upl = new THREE.PointLight(0xc8a87a, 3.5, 8);
+    upl.position.set(x, y, z);
+    scene.add(upl);
+  });
+
+  // ── Controls ────────────────────────────────────────────────────
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+  controls.autoRotate = autoRotate;
+  controls.autoRotateSpeed = 0.6;
+  controls.maxPolarAngle = Math.PI / 2 + 0.05;
+  controls.minDistance = 4;
+  controls.maxDistance = 30;
+  controls.target.set(0, 2, 0);
+
+  // Pause auto-rotate on interaction
+  canvas.addEventListener('pointerdown', () => { controls.autoRotate = false; });
+
+  // ── Model / Placeholder ─────────────────────────────────────────
+  if (modelUrl) {
+    const loader = new GLTFLoader();
+    loader.load(modelUrl, (gltf) => {
+      const model = gltf.scene;
+      // Center and scale the loaded model
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 8 / maxDim;
+      model.scale.setScalar(scale);
+      model.position.sub(center.multiplyScalar(scale));
+      model.position.y += (size.y * scale) / 2;
+      model.traverse(child => {
+        if ((child as THREE.Mesh).isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+      scene.add(model);
+    });
+  } else {
+    buildPlaceholder(scene);
+  }
+
+  // ── Resize ──────────────────────────────────────────────────────
+  function resize() {
+    const w = root.clientWidth;
+    const h = root.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h, false);
+  }
+  resize();
+  const ro = new ResizeObserver(resize);
+  ro.observe(root);
+
+  // ── Loop ────────────────────────────────────────────────────────
+  let rafId = 0;
+  function tick() {
+    rafId = requestAnimationFrame(tick);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  tick();
+
+  // ── Cleanup ─────────────────────────────────────────────────────
+  return () => {
+    cancelAnimationFrame(rafId);
+    ro.disconnect();
+    controls.dispose();
+    renderer.dispose();
+    root.removeAttribute('data-viewer-init');
+  };
+}
+
+// ── Placeholder stage geometry ────────────────────────────────────
+function buildPlaceholder(scene: THREE.Scene) {
+  const accent  = 0xc8a87a;
+  const darkWood = 0x1a1410;
+  const midWood  = 0x242018;
+  const floor    = 0x0f0f0f;
+
+  const accentMat  = new THREE.MeshStandardMaterial({ color: accent,   metalness: 0.4, roughness: 0.5 });
+  const darkMat    = new THREE.MeshStandardMaterial({ color: darkWood, roughness: 0.9 });
+  const midMat     = new THREE.MeshStandardMaterial({ color: midWood,  roughness: 0.85 });
+  const floorMat   = new THREE.MeshStandardMaterial({ color: floor,    roughness: 1.0 });
+  const edgeMat    = new THREE.LineBasicMaterial({ color: 0x3a2e1e, transparent: true, opacity: 0.55 });
+
+  const group = new THREE.Group();
+
+  function addEdges(mesh: THREE.Mesh) {
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 12), edgeMat.clone());
+    edges.position.copy(mesh.position);
+    edges.rotation.copy(mesh.rotation);
+    edges.scale.copy(mesh.scale);
+    group.add(edges);
+  }
+
+  // Ground
+  const ground = new THREE.Mesh(new THREE.BoxGeometry(28, 0.08, 22), floorMat);
+  ground.position.y = -0.04;
+  ground.receiveShadow = true;
+  group.add(ground);
+
+  // Grid
+  const grid = new THREE.GridHelper(26, 26, 0x1c1c1c, 0x161616);
+  grid.position.y = 0.02;
+  group.add(grid);
+
+  // Stage deck
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(13, 0.45, 9), midMat);
+  deck.position.set(0, 0.22, -0.5);
+  deck.castShadow = true;
+  deck.receiveShadow = true;
+  group.add(deck);
+  addEdges(deck);
+
+  // Stage steps (3)
+  for (let i = 0; i < 3; i++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(5, 0.14, 1.1), darkMat);
+    step.position.set(0, i * 0.14 + 0.07, 4.0 - i * 1.1);
+    step.receiveShadow = true;
+    group.add(step);
+    addEdges(step);
+  }
+
+  // Back wall
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(13, 7.5, 0.28), darkMat);
+  backWall.position.set(0, 3.75, -5);
+  backWall.castShadow = true;
+  group.add(backWall);
+  addEdges(backWall);
+
+  // Proscenium side legs
+  for (const side of [-1, 1] as const) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(1.1, 7, 0.35), midMat);
+    leg.position.set(side * 7, 3.5, -0.8);
+    leg.castShadow = true;
+    group.add(leg);
+    addEdges(leg);
+
+    // Inner leg
+    const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 6.5, 2.8), midMat);
+    leg2.position.set(side * 6.3, 3.25, -2.4);
+    group.add(leg2);
+
+    // Accent reveal strip
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 6.8, 0.06), accentMat);
+    strip.position.set(side * (7 - side * 0.53), 3.5, -0.62);
+    group.add(strip);
+  }
+
+  // Proscenium header beam
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(15.2, 0.55, 0.35), midMat);
+  beam.position.set(0, 7.1, -0.8);
+  group.add(beam);
+  addEdges(beam);
+
+  // Accent trim on beam (top and bottom edges)
+  const beamTrimTop = new THREE.Mesh(new THREE.BoxGeometry(15.2, 0.07, 0.07), accentMat);
+  beamTrimTop.position.set(0, 7.36, -0.63);
+  group.add(beamTrimTop);
+  const beamTrimBot = new THREE.Mesh(new THREE.BoxGeometry(15.2, 0.07, 0.07), accentMat);
+  beamTrimBot.position.set(0, 6.84, -0.63);
+  group.add(beamTrimBot);
+
+  // Columns on back wall (4)
+  for (let i = 0; i < 4; i++) {
+    const x = -4.5 + i * 3;
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 7, 10), midMat);
+    col.position.set(x, 3.5, -4.87);
+    col.castShadow = true;
+    group.add(col);
+
+    // Capital
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.18, 0.44), accentMat);
+    cap.position.set(x, 7.09, -4.87);
+    group.add(cap);
+
+    // Base
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.18, 0.44), accentMat);
+    base.position.set(x, -0.04, -4.87);
+    group.add(base);
+  }
+
+  // Border light pipe (batten)
+  const batten = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 12, 6), accentMat);
+  batten.rotation.z = Math.PI / 2;
+  batten.position.set(0, 6.6, -1.6);
+  group.add(batten);
+
+  // Rigging line details (thin vertical ropes)
+  for (let i = -5; i <= 5; i += 2.5) {
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 5, 4), darkMat);
+    line.position.set(i, 4.6, -1.6);
+    group.add(line);
+  }
+
+  scene.add(group);
+}
+
+// ── View Transition wiring ────────────────────────────────────────
+document.addEventListener('astro:page-load', initAllViewers);
+
+document.addEventListener('astro:before-swap', () => {
+  cleanups.forEach(fn => fn());
+  cleanups.clear();
+});
+
+// Initial load (fires before astro:page-load on first visit)
+initAllViewers();
+</script>
+
+<style>
+  .viewer-root {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    background: #0c0c0c;
+  }
+
+  .viewer-canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .viewer-hint {
+    position: absolute;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(200, 168, 122, 0.5);
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  .viewer-root:hover .viewer-hint {
+    opacity: 0;
+  }
+</style>
