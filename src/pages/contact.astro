@@ -1,0 +1,283 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Contact | Chase Fiore" description="Get in touch with Chase Fiore for show set design and photography projects.">
+  <main>
+    <header class="page-header">
+      <h1>Get in Touch</h1>
+      <p>For project inquiries and collaborations</p>
+    </header>
+
+    <div class="contact-body">
+
+      <div class="contact-info">
+        <h2>Let's Work Together</h2>
+        <p>
+          Available for show set design, scenic design, photography, and special event projects.
+          Reach out via the form or directly by email.
+        </p>
+        <a href="mailto:hello@chasefiore.com" class="email-link">hello@chasefiore.com</a>
+      </div>
+
+      <form
+        id="contact-form"
+        action="https://formspree.io/f/YOUR_FORM_ID"
+        method="POST"
+      >
+        <div class="field">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" required placeholder="Your name" autocomplete="name" />
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required placeholder="your@email.com" autocomplete="email" />
+        </div>
+
+        <div class="field">
+          <label for="subject">Subject</label>
+          <input type="text" id="subject" name="subject" placeholder="Project type or inquiry" />
+        </div>
+
+        <div class="field">
+          <label for="message">Message</label>
+          <textarea id="message" name="message" required rows="6" placeholder="Tell me about your project..."></textarea>
+        </div>
+
+        <button type="submit" id="submit-btn">
+          <span class="btn-text">Send Message</span>
+          <span class="btn-sending" aria-hidden="true">Sending…</span>
+        </button>
+
+        <p class="form-notice" id="form-notice" aria-live="polite"></p>
+      </form>
+
+    </div>
+  </main>
+</Layout>
+
+<script>
+  const form = document.getElementById('contact-form') as HTMLFormElement;
+  const btn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const notice = document.getElementById('form-notice') as HTMLParagraphElement;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    btn.classList.add('loading');
+    btn.disabled = true;
+    notice.textContent = '';
+    notice.className = 'form-notice';
+
+    try {
+      const res = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { Accept: 'application/json' },
+      });
+
+      if (res.ok) {
+        notice.textContent = 'Message sent — thanks, I\'ll be in touch soon.';
+        notice.classList.add('success');
+        form.reset();
+      } else {
+        throw new Error('Network response was not ok');
+      }
+    } catch {
+      notice.textContent = 'Something went wrong. Please try emailing directly.';
+      notice.classList.add('error');
+    } finally {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  });
+</script>
+
+<style>
+  main {
+    flex: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 2rem 6rem;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    padding: 5rem 0 3rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4rem;
+  }
+
+  .page-header h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+
+  .page-header p {
+    color: var(--text-muted);
+    font-size: 1rem;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Body ── */
+  .contact-body {
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    gap: 5rem;
+    align-items: start;
+  }
+
+  /* ── Info ── */
+  .contact-info h2 {
+    font-size: 1.2rem;
+    font-weight: 400;
+    margin-bottom: 1rem;
+  }
+
+  .contact-info p {
+    font-size: 0.925rem;
+    line-height: 1.7;
+    color: rgba(232, 232, 232, 0.7);
+    margin-bottom: 1.5rem;
+  }
+
+  .email-link {
+    font-size: 0.875rem;
+    color: var(--accent);
+    border-bottom: 1px solid transparent;
+    padding-bottom: 1px;
+    transition: border-color 0.2s;
+    word-break: break-all;
+  }
+
+  .email-link:hover {
+    border-color: var(--accent);
+  }
+
+  /* ── Form ── */
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  label {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  input,
+  textarea {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.75rem 1rem;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 0.925rem;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+    resize: vertical;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #444;
+  }
+
+  input:focus,
+  textarea:focus {
+    border-color: rgba(200, 168, 122, 0.5);
+  }
+
+  button[type="submit"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-top: 0.5rem;
+    padding: 0.85rem 2rem;
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: var(--accent);
+    font-family: var(--font);
+    font-size: 0.875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    align-self: flex-start;
+    position: relative;
+    overflow: hidden;
+  }
+
+  button[type="submit"]:hover:not(:disabled) {
+    background: var(--accent);
+    color: #0c0c0c;
+  }
+
+  button[type="submit"]:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn-sending {
+    display: none;
+    position: absolute;
+  }
+
+  button.loading .btn-text {
+    visibility: hidden;
+  }
+
+  button.loading .btn-sending {
+    display: block;
+    position: static;
+  }
+
+  /* ── Notice ── */
+  .form-notice {
+    font-size: 0.875rem;
+    min-height: 1.25rem;
+  }
+
+  .form-notice.success {
+    color: #7fbf7f;
+  }
+
+  .form-notice.error {
+    color: #c87a7a;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .contact-body {
+      grid-template-columns: 1fr;
+      gap: 2.5rem;
+    }
+  }
+
+  @media (max-width: 600px) {
+    main {
+      padding: 0 1rem 4rem;
+    }
+
+    .page-header {
+      padding: 3rem 0 2rem;
+    }
+  }
+</style>

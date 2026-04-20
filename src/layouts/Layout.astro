@@ -1,23 +1,197 @@
+---
+import { ClientRouter } from 'astro:transitions';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'Show Set Design & Photography by Chase Fiore' } = Astro.props;
+const path = Astro.url.pathname;
+---
+
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
-	</head>
-	<body>
-		<slot />
-	</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <ClientRouter />
+  </head>
+  <body>
+    <nav>
+      <a href="/" class="nav-logo" transition:name="site-logo">Chase Fiore</a>
+      <ul>
+        <li><a href="/" class:list={{ active: path === '/' }}>Portfolio</a></li>
+        <li><a href="/resume" class:list={{ active: path === '/resume' }}>Resume</a></li>
+        <li><a href="https://crashandfred.com" target="_blank" rel="noopener noreferrer">Book</a></li>
+        <li><a href="/contact" class:list={{ active: path === '/contact' }}>Contact</a></li>
+      </ul>
+    </nav>
+
+    <slot />
+
+    <footer>
+      <p>© {new Date().getFullYear()} Chase Fiore</p>
+    </footer>
+  </body>
 </html>
 
-<style>
-	html,
-	body {
-		margin: 0;
-		width: 100%;
-		height: 100%;
-	}
+<style is:global>
+  :root {
+    --bg: #0c0c0c;
+    --bg-card: #141414;
+    --bg-hover: #1a1a1a;
+    --text: #e8e8e8;
+    --text-muted: #888;
+    --accent: #c8a87a;
+    --border: rgba(255, 255, 255, 0.08);
+    --nav-height: 64px;
+    --max-width: 1400px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+  }
+
+  /* ── Nav ── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: var(--nav-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    background: rgba(12, 12, 12, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    transition: color 0.2s;
+  }
+
+  .nav-logo:hover {
+    color: var(--accent);
+  }
+
+  nav ul {
+    list-style: none;
+    display: flex;
+    gap: 2rem;
+  }
+
+  nav ul a {
+    font-size: 0.875rem;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    transition: color 0.2s;
+    position: relative;
+    padding-bottom: 2px;
+  }
+
+  nav ul a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 1px;
+    background: var(--accent);
+    transition: width 0.25s ease;
+  }
+
+  nav ul a:hover,
+  nav ul a.active {
+    color: var(--text);
+  }
+
+  nav ul a.active::after,
+  nav ul a:hover::after {
+    width: 100%;
+  }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: auto;
+    padding: 2rem;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── View Transition defaults ── */
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fade-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-8px); }
+  }
+
+  ::view-transition-old(root) {
+    animation: 200ms ease fade-out;
+  }
+
+  ::view-transition-new(root) {
+    animation: 250ms ease fade-in;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    nav {
+      padding: 0 1rem;
+    }
+
+    nav ul {
+      gap: 1.25rem;
+    }
+
+    nav ul a {
+      font-size: 0.75rem;
+    }
+  }
 </style>

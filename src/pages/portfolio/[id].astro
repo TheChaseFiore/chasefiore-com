@@ -1,4 +1,5 @@
 ---
+import Layout from '../../layouts/Layout.astro';
 import { getCollection, render } from 'astro:content';
 import { Image } from 'astro:assets';
 
@@ -14,39 +15,172 @@ const { project } = Astro.props;
 const { Content } = await render(project);
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
-		<title>{project.data.title} | Chase Fiore</title>
-		<style>
-			body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; }
-			img { max-width: 100%; height: auto; border-radius: 8px; margin-bottom: 2rem; }
-			.back-link { display: inline-block; margin-bottom: 2rem; text-decoration: none; color: #555; }
-		</style>
-	</head>
-	<body>
-		<a href="/" class="back-link">← Back to Home</a>
-		
-		<header>
-			<h1>{project.data.title}</h1>
-			<p><em>{project.data.description}</em></p>
-		</header>
+<Layout title={`${project.data.title} | Chase Fiore`} description={project.data.description}>
+  <article>
+    {project.data.coverImage && (
+      <div class="cover-wrap">
+        <Image
+          src={project.data.coverImage}
+          alt={project.data.title}
+          width={1600}
+          format="webp"
+          transition:name={`cover-${project.id}`}
+        />
+      </div>
+    )}
 
-		<main>
-			{project.data.coverImage && (
-				<Image 
-					src={project.data.coverImage} 
-					alt={project.data.title} 
-					width={1200} 
-					format="webp" 
-				/>
-			)}
+    <div class="content-wrap">
+      <nav class="breadcrumb">
+        <a href="/">← All Work</a>
+        {project.data.tags && project.data.tags.map((tag) => (
+          <span class="tag">{tag}</span>
+        ))}
+      </nav>
 
-			<article>
-				<Content />
-			</article>
-		</main>
-	</body>
-</html>
+      <header class="project-header">
+        <h1 transition:name={`title-${project.id}`}>{project.data.title}</h1>
+        {project.data.description && <p class="description">{project.data.description}</p>}
+        {project.data.publishDate && (
+          <time datetime={project.data.publishDate.toISOString()}>
+            {project.data.publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+          </time>
+        )}
+      </header>
+
+      <div class="prose">
+        <Content />
+      </div>
+    </div>
+  </article>
+</Layout>
+
+<style>
+  article {
+    flex: 1;
+  }
+
+  /* ── Cover ── */
+  .cover-wrap {
+    width: 100%;
+    max-height: 75vh;
+    overflow: hidden;
+  }
+
+  .cover-wrap img {
+    width: 100%;
+    height: 100%;
+    max-height: 75vh;
+    object-fit: cover;
+    object-position: center top;
+  }
+
+  /* ── Content ── */
+  .content-wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 3rem 2rem 6rem;
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    font-size: 0.85rem;
+  }
+
+  .breadcrumb a {
+    color: var(--text-muted);
+    transition: color 0.2s;
+  }
+
+  .breadcrumb a:hover {
+    color: var(--accent);
+  }
+
+  .tag {
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(200, 168, 122, 0.4);
+    padding: 0.15rem 0.5rem;
+    border-radius: 2px;
+  }
+
+  /* ── Header ── */
+  .project-header {
+    margin-bottom: 2.5rem;
+    padding-bottom: 2.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .project-header h1 {
+    font-size: clamp(1.75rem, 4vw, 3rem);
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 0.75rem;
+  }
+
+  .description {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+  }
+
+  time {
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* ── Prose ── */
+  .prose {
+    color: var(--text);
+    line-height: 1.75;
+    font-size: 1.05rem;
+  }
+
+  .prose :global(h2) {
+    font-size: 1.4rem;
+    font-weight: 400;
+    margin: 2rem 0 0.75rem;
+  }
+
+  .prose :global(h3) {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin: 1.5rem 0 0.5rem;
+  }
+
+  .prose :global(p) {
+    margin-bottom: 1.25rem;
+    color: rgba(232, 232, 232, 0.85);
+  }
+
+  .prose :global(img) {
+    width: 100%;
+    border-radius: 4px;
+    margin: 2rem 0;
+  }
+
+  .prose :global(ul),
+  .prose :global(ol) {
+    padding-left: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .prose :global(li) {
+    margin-bottom: 0.4rem;
+    color: rgba(232, 232, 232, 0.85);
+  }
+
+  @media (max-width: 600px) {
+    .content-wrap {
+      padding: 2rem 1rem 4rem;
+    }
+  }
+</style>

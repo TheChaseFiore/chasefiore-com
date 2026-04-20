@@ -1,0 +1,194 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Resume | Chase Fiore" description="Professional experience and skills of Chase Fiore, Show Set Designer & Photographer.">
+  <main>
+    <header class="page-header">
+      <h1>Resume</h1>
+      <p>Show Set Design &amp; Photography</p>
+    </header>
+
+    <div class="resume-body">
+
+      <section>
+        <h2>Experience</h2>
+
+        <div class="entry">
+          <div class="entry-meta">
+            <span class="entry-date">2022 — Present</span>
+          </div>
+          <div class="entry-content">
+            <h3>Show Set Designer</h3>
+            <span class="entry-company">Walt Disney World Entertainment</span>
+            <p>Designed and art directed show sets for live entertainment across EPCOT and other Disney parks, including Food & Wine Festival stages, holiday spectaculars, character greetings, and special events.</p>
+          </div>
+        </div>
+
+        <!-- Add more experience entries here following the same pattern -->
+      </section>
+
+      <section>
+        <h2>Education</h2>
+
+        <div class="entry">
+          <div class="entry-meta">
+            <span class="entry-date">MFA</span>
+          </div>
+          <div class="entry-content">
+            <h3>Master of Fine Arts — Scenic Design</h3>
+            <span class="entry-company">Savannah College of Art and Design (SCAD)</span>
+          </div>
+        </div>
+
+        <!-- Add more education entries here -->
+      </section>
+
+      <section>
+        <h2>Skills</h2>
+        <ul class="skills-grid">
+          <li>Scenic Design</li>
+          <li>Show Set Design</li>
+          <li>Lighting Design</li>
+          <li>Revit</li>
+          <li>AutoCAD</li>
+          <li>Vectorworks</li>
+          <li>3D Rendering</li>
+          <li>3D Modeling</li>
+          <li>Photography</li>
+          <li>Interior Design</li>
+          <li>Signal Flow</li>
+          <li>Adobe Creative Suite</li>
+        </ul>
+      </section>
+
+    </div>
+  </main>
+</Layout>
+
+<style>
+  main {
+    flex: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 2rem 6rem;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    padding: 5rem 0 3rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4rem;
+  }
+
+  .page-header h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+
+  .page-header p {
+    color: var(--text-muted);
+    font-size: 1rem;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Sections ── */
+  .resume-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4rem;
+  }
+
+  section h2 {
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 2rem;
+  }
+
+  /* ── Entries ── */
+  .entry {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 1.5rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .entry:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .entry-meta {
+    padding-top: 0.2rem;
+  }
+
+  .entry-date {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+  }
+
+  .entry-content h3 {
+    font-size: 1.05rem;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+  }
+
+  .entry-company {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 0.75rem;
+  }
+
+  .entry-content p {
+    font-size: 0.925rem;
+    line-height: 1.7;
+    color: rgba(232, 232, 232, 0.75);
+  }
+
+  /* ── Skills ── */
+  .skills-grid {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .skills-grid li {
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.85rem;
+    border-radius: 2px;
+    color: var(--text-muted);
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .skills-grid li:hover {
+    border-color: rgba(200, 168, 122, 0.4);
+    color: var(--accent);
+  }
+
+  @media (max-width: 600px) {
+    main {
+      padding: 0 1rem 4rem;
+    }
+
+    .page-header {
+      padding: 3rem 0 2rem;
+    }
+
+    .entry {
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+    }
+  }
+</style>
