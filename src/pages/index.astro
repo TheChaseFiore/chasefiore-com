@@ -99,15 +99,19 @@ const sorted = allProjects.sort((a, b) => {
     function update() {
       const scrollY = window.scrollY;
       // Raw progress: 0 when at top, 1 when scrolled scrollDist past the pin top
-      const pinTop = pin.offsetTop;
+      const pinTop = pin!.offsetTop;
       const raw = Math.min(Math.max((scrollY - pinTop) / scrollDist, 0), 1);
+
+      // Drive the 3D explode animation with raw (unsmoothed) progress so each
+      // ExplodePart can apply its own easing and stagger timing independently.
+      viewer!.dispatchEvent(new CustomEvent('viewer:explode', { detail: raw }));
 
       // Ease: smooth-step so the start/end feel natural
       const t = raw * raw * (3 - 2 * raw);
 
       // Viewer: fade + zoom out (scale down slightly)
-      viewer.style.opacity  = String(1 - t);
-      viewer.style.transform = `scale(${1 - t * 0.07}) translateZ(0)`;
+      viewer!.style.opacity  = String(1 - t);
+      viewer!.style.transform = `scale(${1 - t * 0.07}) translateZ(0)`;
 
       // Overlay text: fades out faster so it clears before grid arrives
       if (overlay) {
@@ -118,7 +122,7 @@ const sorted = allProjects.sort((a, b) => {
       // Grid: rises up from 48px below, fully settled when hero is half-faded
       const gridT = Math.min(Math.max((raw - 0.15) / 0.6, 0), 1);
       const gridEased = gridT * gridT * (3 - 2 * gridT);
-      grid.style.transform = `translateY(${(1 - gridEased) * 48}px)`;
+      grid!.style.transform = `translateY(${(1 - gridEased) * 48}px)`;
     }
 
     function onScroll() {
@@ -133,10 +137,10 @@ const sorted = allProjects.sort((a, b) => {
       window.removeEventListener('scroll', onScroll);
       cancelAnimationFrame(raf);
       // Reset transforms so navigating back looks clean
-      viewer.style.opacity = '';
-      viewer.style.transform = '';
+      viewer!.style.opacity = '';
+      viewer!.style.transform = '';
       if (overlay) overlay.style.opacity = '';
-      grid.style.transform = '';
+      grid!.style.transform = '';
     };
   }
 

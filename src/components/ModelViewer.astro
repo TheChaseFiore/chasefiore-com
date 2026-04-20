@@ -18,17 +18,26 @@ const { modelUrl = '', height = '500px', autoRotate = true } = Astro.props;
   <slot />
   <div class="viewer-hint">
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a7 7 0 0 1 7 7v1l2 1-2 1v3l-7 4-7-4v-3L3 10l2-1V9a7 7 0 0 1 7-7z"/><path d="M12 2v18"/></svg>
-    <span>Drag · Scroll to zoom</span>
+    <span>Drag to rotate</span>
   </div>
 </div>
 
 <script>
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 
 type CleanupFn = () => void;
 const cleanups = new Map<Element, CleanupFn>();
+
+interface ExplodePart {
+  object: THREE.Object3D;
+  origin: THREE.Vector3;
+  dir: THREE.Vector3;
+  dist: number;
+  startAt: number; // scroll raw [0–1] when this part begins moving
+  endAt: number;   // scroll raw [0–1] when it reaches full displacement
+}
 
 function initAllViewers() {
   document.querySelectorAll<HTMLElement>('.viewer-root:not([data-viewer-init])').forEach(el => {
@@ -99,15 +108,54 @@ function setupViewer(root: HTMLElement): CleanupFn {
   controls.maxDistance = 30;
   controls.target.set(0, 2, 0);
 
-  // Pause auto-rotate on interaction
-  canvas.addEventListener('pointerdown', () => { controls.autoRotate = false; });
+  // ── Scroll / touch passthrough ──────────────────────────────────
+  // OrbitControls calls preventDefault() on wheel events, which swallows
+  // touchpad scroll and prevents the page from scrolling. Fix: intercept
+  // wheel events in the capture phase (fires before OrbitControls' listener)
+  // and block them unless the user has explicitly clicked to interact.
+  // On mobile, touchAction = 'pan-y' lets vertical swipes reach the browser
+  // scroll handler instead of OrbitControls' touch rotate/zoom handlers.
+  canvas.style.touchAction = 'pan-y';
+
+  let userInteracting = false;
+  let interactTimer = 0;
+
+  const onPointerDown = () => {
+    controls.autoRotate = false;
+    userInteracting = true;
+    clearTimeout(interactTimer);
+  };
+  const onPointerUp = () => {
+    interactTimer = window.setTimeout(() => { userInteracting = false; }, 1500);
+  };
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointerup', onPointerUp);
+
+  // Capture phase on the root div fires before any canvas listener.
+  // stopPropagation() prevents the event reaching the canvas entirely,
+  // so OrbitControls never calls preventDefault() → browser scrolls the page.
+  root.addEventListener('wheel', (e) => {
+    if (!userInteracting) e.stopPropagation();
+  }, { capture: true });
+
+  // ── Explode ──────────────────────────────────────────────────────
+  // Scroll progress [0–1] is dispatched from the page's scroll handler
+  // as a 'viewer:explode' CustomEvent. Each ExplodePart has its own
+  // startAt/endAt window so they depart the scene in sequence.
+  const explodeParts: ExplodePart[] = [];
+  let explodeProgress = 0;
+
+  const onExplode = (e: Event) => {
+    explodeProgress = (e as CustomEvent<number>).detail;
+  };
+  root.addEventListener('viewer:explode', onExplode);
 
   // ── Model / Placeholder ─────────────────────────────────────────
   if (modelUrl) {
     const loader = new GLTFLoader();
-    loader.load(modelUrl, (gltf) => {
+    loader.load(modelUrl, (gltf: GLTF) => {
       const model = gltf.scene;
-      // Center and scale the loaded model
       const box = new THREE.Box3().setFromObject(model);
       const center = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3());
@@ -116,16 +164,32 @@ function setupViewer(root: HTMLElement): CleanupFn {
       model.scale.setScalar(scale);
       model.position.sub(center.multiplyScalar(scale));
       model.position.y += (size.y * scale) / 2;
-      model.traverse(child => {
+      model.traverse((child: THREE.Object3D) => {
         if ((child as THREE.Mesh).isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
         }
       });
       scene.add(model);
+
+      // Generic explode: push each top-level child away from model centre
+      if (model.children.length > 1) {
+        const modelCenter = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+        model.children.forEach((child, idx) => {
+          const childCenter = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
+          const dir = childCenter.clone().sub(modelCenter);
+          const spread = dir.length();
+          dir.normalize();
+          if (dir.lengthSq() < 0.001) {
+            const a = (idx / model.children.length) * Math.PI * 2;
+            dir.set(Math.cos(a), 0.5, Math.sin(a)).normalize();
+          }
+          explodeParts.push({ object: child, origin: child.position.clone(), dir, dist: Math.max(spread * 4, 8), startAt: 0.05, endAt: 0.75 });
+        });
+      }
     });
   } else {
-    buildPlaceholder(scene);
+    explodeParts.push(...buildPlaceholder(scene));
   }
 
   // ── Resize ──────────────────────────────────────────────────────
@@ -145,6 +209,15 @@ function setupViewer(root: HTMLElement): CleanupFn {
   function tick() {
     rafId = requestAnimationFrame(tick);
     controls.update();
+
+    if (explodeProgress > 0.001 && explodeParts.length > 0) {
+      for (const p of explodeParts) {
+        const local = Math.min(Math.max((explodeProgress - p.startAt) / (p.endAt - p.startAt), 0), 1);
+        const eased = local * local * (3 - 2 * local);
+        p.object.position.copy(p.origin).addScaledVector(p.dir, p.dist * eased);
+      }
+    }
+
     renderer.render(scene, camera);
   }
   tick();
@@ -155,134 +228,141 @@ function setupViewer(root: HTMLElement): CleanupFn {
     ro.disconnect();
     controls.dispose();
     renderer.dispose();
+    canvas.removeEventListener('pointerdown', onPointerDown);
+    window.removeEventListener('pointerup', onPointerUp);
+    root.removeEventListener('viewer:explode', onExplode);
+    clearTimeout(interactTimer);
+    for (const p of explodeParts) p.object.position.copy(p.origin);
     root.removeAttribute('data-viewer-init');
   };
 }
 
 // ── Placeholder stage geometry ────────────────────────────────────
-function buildPlaceholder(scene: THREE.Scene) {
-  const accent  = 0xc8a87a;
+// Returns ExplodePart[] so the scroll handler can drive each group
+// independently. Departure order (theatrical strike sequence):
+//   1. flyGroup  – batten + rigging fly up into the flies
+//   2. backGroup – back wall + columns recede upstage
+//   3. floorGroup– ground sinks away
+//   4. deckGroup – stage deck slides downstage
+//   5. archGroup – proscenium arch lifts off last (most dramatic)
+function buildPlaceholder(scene: THREE.Scene): ExplodePart[] {
+  const accent   = 0xc8a87a;
   const darkWood = 0x1a1410;
   const midWood  = 0x242018;
   const floor    = 0x0f0f0f;
 
-  const accentMat  = new THREE.MeshStandardMaterial({ color: accent,   metalness: 0.4, roughness: 0.5 });
-  const darkMat    = new THREE.MeshStandardMaterial({ color: darkWood, roughness: 0.9 });
-  const midMat     = new THREE.MeshStandardMaterial({ color: midWood,  roughness: 0.85 });
-  const floorMat   = new THREE.MeshStandardMaterial({ color: floor,    roughness: 1.0 });
-  const edgeMat    = new THREE.LineBasicMaterial({ color: 0x3a2e1e, transparent: true, opacity: 0.55 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: accent,   metalness: 0.4, roughness: 0.5 });
+  const darkMat   = new THREE.MeshStandardMaterial({ color: darkWood, roughness: 0.9 });
+  const midMat    = new THREE.MeshStandardMaterial({ color: midWood,  roughness: 0.85 });
+  const floorMat  = new THREE.MeshStandardMaterial({ color: floor,    roughness: 1.0 });
+  const edgeMat   = new THREE.LineBasicMaterial({ color: 0x3a2e1e, transparent: true, opacity: 0.55 });
 
-  const group = new THREE.Group();
-
-  function addEdges(mesh: THREE.Mesh) {
+  function addEdges(mesh: THREE.Mesh, parent: THREE.Group) {
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 12), edgeMat.clone());
     edges.position.copy(mesh.position);
     edges.rotation.copy(mesh.rotation);
     edges.scale.copy(mesh.scale);
-    group.add(edges);
+    parent.add(edges);
   }
 
-  // Ground
-  const ground = new THREE.Mesh(new THREE.BoxGeometry(28, 0.08, 22), floorMat);
-  ground.position.y = -0.04;
-  ground.receiveShadow = true;
-  group.add(ground);
-
-  // Grid
-  const grid = new THREE.GridHelper(26, 26, 0x1c1c1c, 0x161616);
-  grid.position.y = 0.02;
-  group.add(grid);
-
-  // Stage deck
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(13, 0.45, 9), midMat);
-  deck.position.set(0, 0.22, -0.5);
-  deck.castShadow = true;
-  deck.receiveShadow = true;
-  group.add(deck);
-  addEdges(deck);
-
-  // Stage steps (3)
-  for (let i = 0; i < 3; i++) {
-    const step = new THREE.Mesh(new THREE.BoxGeometry(5, 0.14, 1.1), darkMat);
-    step.position.set(0, i * 0.14 + 0.07, 4.0 - i * 1.1);
-    step.receiveShadow = true;
-    group.add(step);
-    addEdges(step);
+  // ── Group 1: Fly system – departs first, straight up ─────────────
+  const flyGroup = new THREE.Group();
+  const batten = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 12, 6), accentMat);
+  batten.rotation.z = Math.PI / 2;
+  batten.position.set(0, 6.6, -1.6);
+  flyGroup.add(batten);
+  for (let i = -5; i <= 5; i += 2.5) {
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 5, 4), darkMat);
+    line.position.set(i, 4.6, -1.6);
+    flyGroup.add(line);
   }
+  scene.add(flyGroup);
 
-  // Back wall
+  // ── Group 2: Back wall + columns – recedes upstage ───────────────
+  const backGroup = new THREE.Group();
   const backWall = new THREE.Mesh(new THREE.BoxGeometry(13, 7.5, 0.28), darkMat);
   backWall.position.set(0, 3.75, -5);
   backWall.castShadow = true;
-  group.add(backWall);
-  addEdges(backWall);
-
-  // Proscenium side legs
-  for (const side of [-1, 1] as const) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(1.1, 7, 0.35), midMat);
-    leg.position.set(side * 7, 3.5, -0.8);
-    leg.castShadow = true;
-    group.add(leg);
-    addEdges(leg);
-
-    // Inner leg
-    const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 6.5, 2.8), midMat);
-    leg2.position.set(side * 6.3, 3.25, -2.4);
-    group.add(leg2);
-
-    // Accent reveal strip
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 6.8, 0.06), accentMat);
-    strip.position.set(side * (7 - side * 0.53), 3.5, -0.62);
-    group.add(strip);
-  }
-
-  // Proscenium header beam
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(15.2, 0.55, 0.35), midMat);
-  beam.position.set(0, 7.1, -0.8);
-  group.add(beam);
-  addEdges(beam);
-
-  // Accent trim on beam (top and bottom edges)
-  const beamTrimTop = new THREE.Mesh(new THREE.BoxGeometry(15.2, 0.07, 0.07), accentMat);
-  beamTrimTop.position.set(0, 7.36, -0.63);
-  group.add(beamTrimTop);
-  const beamTrimBot = new THREE.Mesh(new THREE.BoxGeometry(15.2, 0.07, 0.07), accentMat);
-  beamTrimBot.position.set(0, 6.84, -0.63);
-  group.add(beamTrimBot);
-
-  // Columns on back wall (4)
+  backGroup.add(backWall);
+  addEdges(backWall, backGroup);
   for (let i = 0; i < 4; i++) {
     const x = -4.5 + i * 3;
     const col = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 7, 10), midMat);
     col.position.set(x, 3.5, -4.87);
     col.castShadow = true;
-    group.add(col);
-
-    // Capital
+    backGroup.add(col);
     const cap = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.18, 0.44), accentMat);
     cap.position.set(x, 7.09, -4.87);
-    group.add(cap);
-
-    // Base
+    backGroup.add(cap);
     const base = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.18, 0.44), accentMat);
     base.position.set(x, -0.04, -4.87);
-    group.add(base);
+    backGroup.add(base);
   }
+  scene.add(backGroup);
 
-  // Border light pipe (batten)
-  const batten = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 12, 6), accentMat);
-  batten.rotation.z = Math.PI / 2;
-  batten.position.set(0, 6.6, -1.6);
-  group.add(batten);
+  // ── Group 3: Floor – sinks straight down ─────────────────────────
+  const floorGroup = new THREE.Group();
+  const ground = new THREE.Mesh(new THREE.BoxGeometry(28, 0.08, 22), floorMat);
+  ground.position.y = -0.04;
+  ground.receiveShadow = true;
+  floorGroup.add(ground);
+  const gridHelper = new THREE.GridHelper(26, 26, 0x1c1c1c, 0x161616);
+  gridHelper.position.y = 0.02;
+  floorGroup.add(gridHelper);
+  scene.add(floorGroup);
 
-  // Rigging line details (thin vertical ropes)
-  for (let i = -5; i <= 5; i += 2.5) {
-    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 5, 4), darkMat);
-    line.position.set(i, 4.6, -1.6);
-    group.add(line);
+  // ── Group 4: Stage deck + steps – slides toward viewer ───────────
+  const deckGroup = new THREE.Group();
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(13, 0.45, 9), midMat);
+  deck.position.set(0, 0.22, -0.5);
+  deck.castShadow = true;
+  deck.receiveShadow = true;
+  deckGroup.add(deck);
+  addEdges(deck, deckGroup);
+  for (let i = 0; i < 3; i++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(5, 0.14, 1.1), darkMat);
+    step.position.set(0, i * 0.14 + 0.07, 4.0 - i * 1.1);
+    step.receiveShadow = true;
+    deckGroup.add(step);
+    addEdges(step, deckGroup);
   }
+  scene.add(deckGroup);
 
-  scene.add(group);
+  // ── Group 5: Proscenium arch – rises last ────────────────────────
+  const archGroup = new THREE.Group();
+  for (const side of [-1, 1] as const) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(1.1, 7, 0.35), midMat);
+    leg.position.set(side * 7, 3.5, -0.8);
+    leg.castShadow = true;
+    archGroup.add(leg);
+    addEdges(leg, archGroup);
+    const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 6.5, 2.8), midMat);
+    leg2.position.set(side * 6.3, 3.25, -2.4);
+    archGroup.add(leg2);
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 6.8, 0.06), accentMat);
+    strip.position.set(side * (7 - side * 0.53), 3.5, -0.62);
+    archGroup.add(strip);
+  }
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(15.2, 0.55, 0.35), midMat);
+  beam.position.set(0, 7.1, -0.8);
+  archGroup.add(beam);
+  addEdges(beam, archGroup);
+  const beamTrimTop = new THREE.Mesh(new THREE.BoxGeometry(15.2, 0.07, 0.07), accentMat);
+  beamTrimTop.position.set(0, 7.36, -0.63);
+  archGroup.add(beamTrimTop);
+  const beamTrimBot = new THREE.Mesh(new THREE.BoxGeometry(15.2, 0.07, 0.07), accentMat);
+  beamTrimBot.position.set(0, 6.84, -0.63);
+  archGroup.add(beamTrimBot);
+  scene.add(archGroup);
+
+  // ── Explode descriptors ───────────────────────────────────────────
+  return [
+    { object: flyGroup,   origin: flyGroup.position.clone(),   dir: new THREE.Vector3(0,  1, -0.2).normalize(), dist: 20, startAt: 0.0,  endAt: 0.55 },
+    { object: backGroup,  origin: backGroup.position.clone(),  dir: new THREE.Vector3(0,  0.4, -1).normalize(), dist: 16, startAt: 0.05, endAt: 0.65 },
+    { object: floorGroup, origin: floorGroup.position.clone(), dir: new THREE.Vector3(0, -1,   0),              dist: 7,  startAt: 0.1,  endAt: 0.75 },
+    { object: deckGroup,  origin: deckGroup.position.clone(),  dir: new THREE.Vector3(0, -0.3, 1).normalize(),  dist: 11, startAt: 0.15, endAt: 0.82 },
+    { object: archGroup,  origin: archGroup.position.clone(),  dir: new THREE.Vector3(0,  1,  0.15).normalize(),dist: 14, startAt: 0.2,  endAt: 0.92 },
+  ];
 }
 
 // ── View Transition wiring ────────────────────────────────────────
