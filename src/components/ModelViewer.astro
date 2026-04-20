@@ -16,6 +16,7 @@ const { modelUrl = '', height = '500px', autoRotate = true } = Astro.props;
 >
   <canvas class="viewer-canvas"></canvas>
   <slot />
+  {modelUrl && <div class="viewer-loading">Loading model…</div>}
   <div class="viewer-hint">
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a7 7 0 0 1 7 7v1l2 1-2 1v3l-7 4-7-4v-3L3 10l2-1V9a7 7 0 0 1 7-7z"/><path d="M12 2v18"/></svg>
     <span>Drag to rotate</span>
@@ -163,46 +164,64 @@ function setupViewer(root: HTMLElement): CleanupFn {
   // ── Model / Placeholder ─────────────────────────────────────────
   if (modelUrl) {
     const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    dracoLoader.setDecoderPath('/draco/');
+    dracoLoader.preload();
     const loader = new GLTFLoader();
     loader.setDRACOLoader(dracoLoader);
+
+    const loadingEl = root.querySelector<HTMLElement>('.viewer-loading');
+
     // Defer the download until the browser is idle so the page renders first.
     const scheduleLoad = (window as any).requestIdleCallback
       ?? ((fn: () => void) => setTimeout(fn, 200));
-    scheduleLoad(() => loader.load(modelUrl, (gltf: GLTF) => {
-      const model = gltf.scene;
-      const box = new THREE.Box3().setFromObject(model);
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const scale = 8 / maxDim;
-      model.scale.setScalar(scale);
-      model.position.sub(center.multiplyScalar(scale));
-      model.position.y += (size.y * scale) / 2;
-      model.traverse((child: THREE.Object3D) => {
-        if ((child as THREE.Mesh).isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
-      });
-      scene.add(model);
+    scheduleLoad(() => {
+      loader.load(
+        modelUrl,
+        (gltf: GLTF) => {
+          if (loadingEl) loadingEl.style.display = 'none';
+          const model = gltf.scene;
+          const box = new THREE.Box3().setFromObject(model);
+          const center = box.getCenter(new THREE.Vector3());
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const scale = 8 / maxDim;
+          model.scale.setScalar(scale);
+          model.position.sub(center.multiplyScalar(scale));
+          model.position.y += (size.y * scale) / 2;
+          model.traverse((child: THREE.Object3D) => {
+            if ((child as THREE.Mesh).isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+          scene.add(model);
 
-      // Generic explode: push each top-level child away from model centre
-      if (model.children.length > 1) {
-        const modelCenter = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
-        model.children.forEach((child, idx) => {
-          const childCenter = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
-          const dir = childCenter.clone().sub(modelCenter);
-          const spread = dir.length();
-          dir.normalize();
-          if (dir.lengthSq() < 0.001) {
-            const a = (idx / model.children.length) * Math.PI * 2;
-            dir.set(Math.cos(a), 0.5, Math.sin(a)).normalize();
+          // Generic explode: push each top-level child away from model centre
+          if (model.children.length > 1) {
+            const modelCenter = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+            model.children.forEach((child, idx) => {
+              const childCenter = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
+              const dir = childCenter.clone().sub(modelCenter);
+              const spread = dir.length();
+              dir.normalize();
+              if (dir.lengthSq() < 0.001) {
+                const a = (idx / model.children.length) * Math.PI * 2;
+                dir.set(Math.cos(a), 0.5, Math.sin(a)).normalize();
+              }
+              explodeParts.push({ object: child, origin: child.position.clone(), dir, dist: Math.max(spread * 4, 8), startAt: 0.05, endAt: 0.75 });
+            });
           }
-          explodeParts.push({ object: child, origin: child.position.clone(), dir, dist: Math.max(spread * 4, 8), startAt: 0.05, endAt: 0.75 });
-        });
-      }
-    }));
+        },
+        undefined,
+        (err) => {
+          console.error('[ModelViewer] Failed to load', modelUrl, err);
+          if (loadingEl) {
+            loadingEl.textContent = 'Model unavailable';
+            loadingEl.style.opacity = '0.4';
+          }
+        }
+      );
+    });
   } else {
     explodeParts.push(...buildPlaceholder(scene));
   }
@@ -404,6 +423,18 @@ initAllViewers();
     display: block;
     width: 100% !important;
     height: 100% !important;
+  }
+
+  .viewer-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(200, 168, 122, 0.5);
+    pointer-events: none;
   }
 
   .viewer-hint {

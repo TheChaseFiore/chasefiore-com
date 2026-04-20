@@ -236,7 +236,7 @@ const sorted = allProjects.sort((a, b) => {
   .portfolio-grid {
     list-style: none;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 1.5px;
   }
 
@@ -246,7 +246,7 @@ const sorted = allProjects.sort((a, b) => {
     position: relative;
     overflow: hidden;
     background: var(--bg-card);
-    aspect-ratio: 3/4;
+    aspect-ratio: 4/5;
     cursor: pointer;
   }
 
@@ -271,7 +271,7 @@ const sorted = allProjects.sort((a, b) => {
     bottom: 0;
     left: 0;
     right: 0;
-    padding: 1.5rem;
+    padding: 0.9rem;
     background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%);
     opacity: 0.92;
     transform: translateY(4px);
@@ -279,14 +279,14 @@ const sorted = allProjects.sort((a, b) => {
   }
 
   .card-info h2 {
-    font-size: 1rem;
+    font-size: 0.8rem;
     font-weight: 500;
     color: #fff;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.2rem;
   }
 
   .card-info p {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     color: rgba(255,255,255,0.65);
     line-height: 1.4;
     display: -webkit-box;
@@ -324,13 +324,16 @@ const sorted = allProjects.sort((a, b) => {
   }
 
   /* ── Responsive ── */
-  @media (max-width: 900px) {
-    .portfolio-grid { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 1100px) {
+    .portfolio-grid { grid-template-columns: repeat(4, 1fr); }
   }
 
-  @media (max-width: 600px) {
+  @media (max-width: 750px) {
+    .portfolio-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (max-width: 500px) {
     .hero-overlay { padding: 1.75rem; }
-    .portfolio-grid { grid-template-columns: 1fr; gap: 1px; }
-    .project-card { aspect-ratio: 4/3; }
+    .portfolio-grid { grid-template-columns: repeat(2, 1fr); gap: 1px; }
   }
 </style>
