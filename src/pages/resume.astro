@@ -1,5 +1,48 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+
+const portfolioProjects = await getCollection('portfolio');
+const portfolioIds = new Set(portfolioProjects.map(p => p.id));
+
+function projectLink(name: string, id: string | null): { name: string; href: string | null } {
+  return { name, href: id && portfolioIds.has(id) ? `/portfolio/${id}/` : null };
+}
+
+const disneyProjects = [
+  projectLink('Luminous: A Symphony of Us', 'luminous-symphony-of-us'),
+  projectLink('Disney Villains: Unfairly Ever After', 'villians-unfairly-ever-after'),
+  projectLink('Celebración Encanto', 'celebracion-encanto'),
+  projectLink('EPCOT Forever', 'epcot-forever'),
+  projectLink('4th of July 2023 & 2024', 'fourth-of-july-2023'),
+  projectLink('Disney Treasure Christening', null),
+  projectLink('Disney on Broadway Redesign', 'disney-on-broadway-2024'),
+  projectLink('Garden Rocks Redesign', 'garden-rocks-2024'),
+  projectLink('Eat to the Beat Redesign', 'eat-to-the-beat-2023'),
+  projectLink('Candlelight Processional Star Update', 'candlelight-processional-2023'),
+  projectLink("New Year's Eve 2023 & 2024", 'epcot-new-years-eve-2024'),
+  projectLink('EPCOT Festival of the Holidays 2023 & 2024', 'festival-of-the-holidays-2023'),
+  projectLink('Figment Character Greeting', 'figment-character-greeting'),
+  projectLink('Mickey and Minnie D100 Character Greeting', 'mickey-minnie-100th-anniversary'),
+  projectLink('Asha Character Greeting', 'wish-asha-character-greeting'),
+  projectLink('Disney Dreamers Academy 2024 & 2025', 'disney-dreamers-academy'),
+];
+
+const falconsProjects = [
+  projectLink('Katmandu Punta Cana', 'katmandu-punta-cana'),
+  projectLink("Falcon's Resort", 'falcons-resort'),
+  projectLink('Exit 15 Indoor Snow Park', 'exit-15'),
+  projectLink('K11 Digital Aquarium', 'k11'),
+];
+
+const franknProjects = [
+  projectLink('Ministry of Magic', 'ministry-of-magic'),
+  projectLink("Hooligan's Grog & Gruel", null),
+];
+
+const universalProjects = [
+  projectLink('Ministry of Magic', 'ministry-of-magic'),
+];
 ---
 
 <Layout title="Resume | Chase Fiore" description="Show Set Designer and BIM + Scenic Integration Specialist with over 10 years of experience in immersive entertainment and themed attraction development.">
@@ -52,22 +95,9 @@ import Layout from '../layouts/Layout.astro';
               <li>Mentored and trained team members; attended Autodesk University 2024.</li>
             </ul>
             <ul class="project-list">
-              <li>Luminous: A Symphony of Us</li>
-              <li>Disney Villains: Unfairly Ever After</li>
-              <li>Celebración Encanto</li>
-              <li>EPCOT Forever</li>
-              <li>4th of July 2023 &amp; 2024</li>
-              <li>Disney Treasure Christening</li>
-              <li>Disney on Broadway Redesign</li>
-              <li>Garden Rocks Redesign</li>
-              <li>Eat to the Beat Redesign</li>
-              <li>Candlelight Processional Star Update</li>
-              <li>New Year's Eve 2023 &amp; 2024</li>
-              <li>EPCOT Festival of the Holidays 2023 &amp; 2024</li>
-              <li>Figment Character Greeting</li>
-              <li>Mickey and Minnie D100 Character Greeting</li>
-              <li>Asha Character Greeting</li>
-              <li>Disney Dreamers Academy 2024 &amp; 2025</li>
+              {disneyProjects.map(({ name, href }) => (
+                <li>{href ? <a href={href}>{name}</a> : name}</li>
+              ))}
             </ul>
           </div>
         </div>
@@ -101,10 +131,9 @@ import Layout from '../layouts/Layout.astro';
               <li>Delivered photorealistic renderings using Photoshop and Revit to convey design intent.</li>
             </ul>
             <ul class="project-list">
-              <li>Katmandu Punta Cana</li>
-              <li>Falcon's Resort</li>
-              <li>Exit 15 Indoor Snow Park</li>
-              <li>K11 Digital Aquarium</li>
+              {falconsProjects.map(({ name, href }) => (
+                <li>{href ? <a href={href}>{name}</a> : name}</li>
+              ))}
             </ul>
           </div>
         </div>
@@ -156,8 +185,9 @@ import Layout from '../layouts/Layout.astro';
               <li>Delivered high-quality Revit-based documentation used in pitch and construction deliverables.</li>
             </ul>
             <ul class="project-list">
-              <li>Ministry of Magic</li>
-              <li>Hooligan's Grog &amp; Gruel</li>
+              {franknProjects.map(({ name, href }) => (
+                <li>{href ? <a href={href}>{name}</a> : name}</li>
+              ))}
             </ul>
           </div>
         </div>
@@ -175,7 +205,9 @@ import Layout from '../layouts/Layout.astro';
               <li>Designed and implemented an asset tracking system for version control across departments.</li>
             </ul>
             <ul class="project-list">
-              <li>Ministry of Magic</li>
+              {universalProjects.map(({ name, href }) => (
+                <li>{href ? <a href={href}>{name}</a> : name}</li>
+              ))}
             </ul>
           </div>
         </div>
@@ -459,6 +491,24 @@ import Layout from '../layouts/Layout.astro';
     padding: 0.15rem 0.55rem;
     border-radius: 2px;
     margin-bottom: 0 !important;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .project-list li:has(a) {
+    padding: 0;
+    border-color: rgba(200, 168, 122, 0.5);
+  }
+
+  .project-list li:has(a):hover {
+    background: rgba(200, 168, 122, 0.1);
+    border-color: var(--accent);
+  }
+
+  .project-list li a {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    padding: 0.15rem 0.55rem;
   }
 
   /* ── Certifications ── */

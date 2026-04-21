@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(git lfs *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(curl -I \"https://assets.chasefiore.com/models/SSE-draco.glb\")",
+      "Bash(npx astro *)"
     ]
   }
 }

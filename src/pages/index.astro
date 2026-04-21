@@ -2,7 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import ModelViewer from '../components/ModelViewer.astro';
 import { getCollection } from 'astro:content';
-import { Image } from 'astro:assets';
+import { Image, getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
 
 const allProjects = await getCollection('portfolio');
 const sorted = allProjects.sort((a, b) => {
@@ -10,6 +11,25 @@ const sorted = allProjects.sort((a, b) => {
   const bDate = b.data.publishDate?.getTime() ?? 0;
   return bDate - aDate;
 });
+
+// Glob all portfolio images at build time so we can feed them to the hover preview
+const allImageModules = import.meta.glob<{ default: ImageMetadata }>(
+  '/src/content/portfolio/**/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}',
+  { eager: true }
+);
+
+const projectPreviewUrls: Record<string, string[]> = {};
+for (const project of sorted) {
+  const imgs = Object.entries(allImageModules)
+    .filter(([path]) => path.includes(`/portfolio/${project.id}/`))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, mod]) => mod.default);
+
+  const processed = await Promise.all(
+    imgs.slice(0, 8).map(img => getImage({ src: img, width: 1400, format: 'webp' }))
+  );
+  projectPreviewUrls[project.id] = processed.map(r => r.src);
+}
 ---
 
 <Layout title="Chase Fiore | Show Set Design & Photography">
@@ -38,10 +58,18 @@ const sorted = allProjects.sort((a, b) => {
 
   <!-- Grid rises up from below as hero fades -->
   <section class="grid-section" id="work">
+    <div id="tag-filter-bar" class="tag-filter-bar" hidden>
+      <span class="filter-label">Filtering by</span>
+      <span id="active-tag-name" class="filter-tag"></span>
+      <button id="clear-tag-filter" class="filter-clear" aria-label="Clear filter">✕ Clear</button>
+    </div>
     <ul class="portfolio-grid">
       {sorted.map((project) => (
         <li>
-          <a href={`/portfolio/${project.id}/`} class="project-card">
+          <a href={`/portfolio/${project.id}/`} class="project-card"
+             data-images={JSON.stringify(projectPreviewUrls[project.id] ?? [])}
+             data-title={project.data.title}
+             data-tags={project.data.tags?.join('|') ?? ''}>
             {project.data.coverImage ? (
               <div class="card-image">
                 <Image
@@ -69,6 +97,14 @@ const sorted = allProjects.sort((a, b) => {
       ))}
     </ul>
   </section>
+
+  <!-- Hover preview overlay -->
+  <div id="card-preview" aria-hidden="true">
+    <img id="preview-img-a" class="preview-img" alt="" />
+    <img id="preview-img-b" class="preview-img" alt="" />
+    <div id="preview-title" class="preview-title"></div>
+    <div id="preview-dots" class="preview-dots"></div>
+  </div>
 
 </Layout>
 
@@ -147,14 +183,172 @@ const sorted = allProjects.sort((a, b) => {
   document.addEventListener('astro:page-load', () => {
     scrollCleanup?.();
     scrollCleanup = initScrollEffect();
+    initCardPreview();
+    initTagFilter();
   });
 
   document.addEventListener('astro:before-swap', () => {
     scrollCleanup?.();
     scrollCleanup = null;
+    destroyCardPreview();
   });
 
   scrollCleanup = initScrollEffect();
+  initCardPreview();
+  initTagFilter();
+
+  window.addEventListener('popstate', initTagFilter);
+
+  // ── Tag filtering ───────────────────────────────────────────────
+  function initTagFilter() {
+    const tag   = new URLSearchParams(location.search).get('tag');
+    const bar   = document.getElementById('tag-filter-bar') as HTMLElement | null;
+    const label = document.getElementById('active-tag-name');
+    const items = document.querySelectorAll<HTMLElement>('.portfolio-grid > li');
+
+    if (tag) {
+      if (bar)   { bar.removeAttribute('hidden'); }
+      if (label) { label.textContent = tag; }
+      items.forEach(li => {
+        const tags = li.querySelector<HTMLAnchorElement>('.project-card')?.dataset.tags ?? '';
+        li.style.display = tags.split('|').includes(tag) ? '' : 'none';
+      });
+    } else {
+      if (bar) { bar.setAttribute('hidden', ''); }
+      items.forEach(li => { li.style.display = ''; });
+    }
+
+    document.getElementById('clear-tag-filter')?.addEventListener('click', () => {
+      const url = new URL(location.href);
+      url.searchParams.delete('tag');
+      history.pushState({}, '', url);
+      initTagFilter();
+    });
+  }
+
+  // ── Card hover preview ──────────────────────────────────────────
+  let previewCleanup: (() => void) | null = null;
+
+  function destroyCardPreview() {
+    previewCleanup?.();
+    previewCleanup = null;
+  }
+
+  function initCardPreview() {
+    const panel   = document.getElementById('card-preview') as HTMLElement | null;
+    const imgA    = document.getElementById('preview-img-a') as HTMLImageElement | null;
+    const imgB    = document.getElementById('preview-img-b') as HTMLImageElement | null;
+    const titleEl = document.getElementById('preview-title') as HTMLElement | null;
+    const dotsEl  = document.getElementById('preview-dots') as HTMLElement | null;
+    if (!panel || !imgA || !imgB) return;
+    const safePanel = panel;
+
+    let images: string[]    = [];
+    let currentIdx          = 0;
+    let activeImg: HTMLImageElement = imgA;
+    let inactiveImg: HTMLImageElement = imgB;
+    let cycleTimer          = 0;
+    let hideTimer           = 0;
+    let isVisible           = false;
+
+    function swap(nextSrc: string) {
+      inactiveImg.src = nextSrc;
+      inactiveImg.style.opacity = '0';
+
+      const onReady = () => {
+        // crossfade
+        activeImg.style.opacity = '0';
+        inactiveImg.style.opacity = '1';
+        // swap references
+        [activeImg, inactiveImg] = [inactiveImg, activeImg];
+        updateDots();
+      };
+
+      if (inactiveImg.complete && inactiveImg.naturalWidth > 0) {
+        onReady();
+      } else {
+        inactiveImg.onload = onReady;
+      }
+    }
+
+    function advance() {
+      currentIdx = (currentIdx + 1) % images.length;
+      swap(images[currentIdx]);
+    }
+
+    function updateDots() {
+      if (!dotsEl) return;
+      dotsEl.innerHTML = images.map((_, i) =>
+        `<span class="preview-dot${i === currentIdx ? ' active' : ''}"></span>`
+      ).join('');
+    }
+
+    function show(srcs: string[], title: string) {
+      clearTimeout(hideTimer);
+      clearInterval(cycleTimer);
+
+      images = srcs;
+      currentIdx = 0;
+
+      if (titleEl) titleEl.textContent = title;
+
+      // Load first image into active slot immediately
+      activeImg.src = srcs[0];
+      activeImg.style.opacity = '1';
+      inactiveImg.style.opacity = '0';
+      updateDots();
+
+      safePanel.classList.add('active');
+      safePanel.setAttribute('aria-hidden', 'false');
+      isVisible = true;
+
+      // Preload all images
+      srcs.forEach(src => { const i = new Image(); i.src = src; });
+
+      if (srcs.length > 1) {
+        cycleTimer = window.setInterval(advance, 2000);
+      }
+    }
+
+    function hide() {
+      clearInterval(cycleTimer);
+      safePanel.classList.remove('active');
+      safePanel.setAttribute('aria-hidden', 'true');
+      isVisible = false;
+      hideTimer = window.setTimeout(() => {
+        // Reset after transition
+        activeImg.src = '';
+        inactiveImg.src = '';
+      }, 400);
+    }
+
+    const cards = document.querySelectorAll<HTMLAnchorElement>('.project-card');
+
+    const onEnter = (e: Event) => {
+      const card = e.currentTarget as HTMLAnchorElement;
+      const srcs: string[] = JSON.parse(card.dataset.images ?? '[]');
+      const title = card.dataset.title ?? '';
+      if (srcs.length === 0) return;
+      show(srcs, title);
+    };
+
+    const onLeave = () => hide();
+
+    cards.forEach(card => {
+      card.addEventListener('mouseenter', onEnter);
+      card.addEventListener('mouseleave', onLeave);
+    });
+
+    previewCleanup = () => {
+      cards.forEach(card => {
+        card.removeEventListener('mouseenter', onEnter);
+        card.removeEventListener('mouseleave', onLeave);
+      });
+      clearInterval(cycleTimer);
+      clearTimeout(hideTimer);
+      if (isVisible) hide();
+    };
+  }
 </script>
 
 <style>
@@ -224,6 +418,48 @@ const sorted = allProjects.sort((a, b) => {
     0%, 100% { transform: translateY(0); }
     50%       { transform: translateY(4px); }
   }
+
+  /* ── Tag filter bar ── */
+  .tag-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.65rem 1.25rem;
+    background: rgba(200, 168, 122, 0.06);
+    border-bottom: 1px solid rgba(200, 168, 122, 0.2);
+  }
+
+  .filter-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .filter-tag {
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(200, 168, 122, 0.5);
+    padding: 0.1rem 0.5rem;
+    border-radius: 2px;
+  }
+
+  .filter-clear {
+    margin-left: auto;
+    background: none;
+    border: none;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.2rem 0.5rem;
+    transition: color 0.2s;
+  }
+
+  .filter-clear:hover { color: var(--accent); }
 
   /* ── Grid: starts offset, JS animates it up ── */
   .grid-section {
@@ -335,5 +571,70 @@ const sorted = allProjects.sort((a, b) => {
   @media (max-width: 500px) {
     .hero-overlay { padding: 1.75rem; }
     .portfolio-grid { grid-template-columns: repeat(2, 1fr); gap: 1px; }
+  }
+
+  /* ── Card hover preview ── */
+  #card-preview {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: rgba(8, 8, 8, 0.88);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #card-preview.active { opacity: 1; }
+
+  .preview-img {
+    position: absolute;
+    inset: 2rem;
+    width: calc(100% - 4rem);
+    height: calc(100% - 4rem);
+    object-fit: contain;
+    transition: opacity 0.5s ease;
+  }
+
+  .preview-title {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .preview-dots {
+    position: absolute;
+    bottom: 3.6rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    pointer-events: none;
+  }
+
+  :global(.preview-dot) {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    transition: background 0.3s;
+  }
+
+  :global(.preview-dot.active) {
+    background: var(--accent);
+  }
+
+  @media (hover: none) {
+    #card-preview { display: none; }
   }
 </style>

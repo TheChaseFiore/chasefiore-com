@@ -56,7 +56,7 @@ const galleryImages = Object.entries(allImages)
       <nav class="breadcrumb">
         <a href="/">← All Work</a>
         {project.data.tags && project.data.tags.map((tag: string) => (
-          <span class="tag">{tag}</span>
+          <a class="tag" href={`/?tag=${encodeURIComponent(tag)}`}>{tag}</a>
         ))}
       </nav>
 
@@ -220,6 +220,13 @@ const galleryImages = Object.entries(allImages)
     border: 1px solid rgba(200, 168, 122, 0.4);
     padding: 0.15rem 0.5rem;
     border-radius: 2px;
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .tag:hover {
+    background: rgba(200, 168, 122, 0.12);
+    border-color: var(--accent);
   }
 
   .project-header {
