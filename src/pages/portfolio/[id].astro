@@ -38,7 +38,7 @@ const galleryImages = Object.entries(allImages)
     <!-- 3D viewer if model field is set, otherwise fall back to cover image -->
     {hasModel ? (
       <div class="media-wrap model-wrap">
-        <ModelViewer modelUrl={project.data.model} height="100%" autoRotate={true} />
+        <ModelViewer modelUrl={project.data.model} height="100%" autoRotate={true} explodeButton={true} sectionCuts={true} />
       </div>
     ) : project.data.coverImage ? (
       <div class="media-wrap cover-wrap">
