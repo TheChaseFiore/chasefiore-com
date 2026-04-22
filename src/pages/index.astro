@@ -12,7 +12,7 @@ import ModelViewer from '../components/ModelViewer.astro';
   -->
   <div class="hero-pin">
     <section class="hero">
-      <ModelViewer modelUrl="/models/SSE.glb" height="100%" autoRotate={true}>
+      <ModelViewer modelUrl="/models/SSE.glb" height="100%" autoRotate={true} debug={true}>
         <div class="hero-overlay">
           <div class="hero-text">
             <svg class="hero-name-svg" viewBox="0 0 600 108" xmlns="http://www.w3.org/2000/svg" aria-label="Chase Fiore" role="img">
@@ -181,3 +181,10 @@ import ModelViewer from '../components/ModelViewer.astro';
     .d4 { top: 60%; left: 12%; }
   }
 </style>
+
+{debug && (
+  <div class="viewer-debug">
+    Camera: <span id="camera-pos"></span><br>
+    Target: <span id="camera-target"></span>
+  </div>
+)}
