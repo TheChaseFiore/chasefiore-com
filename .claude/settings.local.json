@@ -14,7 +14,8 @@
       "Bash(curl -sI \"https://chasefiore-com.pages.dev/draco/draco_decoder.wasm\")",
       "Bash(curl -sI \"https://assets.chasefiore.com/models/SSE-draco.glb\" -H \"Origin: https://chasefiore-com.pages.dev\")",
       "Bash(curl -s \"https://chasefiore-com.pages.dev/\")",
-      "WebFetch(domain:developers.cloudflare.com)"
+      "WebFetch(domain:developers.cloudflare.com)",
+      "Bash(npm run *)"
     ]
   }
 }

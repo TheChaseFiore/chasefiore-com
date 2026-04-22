@@ -5,9 +5,10 @@ interface Props {
   autoRotate?: boolean;
   explodeButton?: boolean;
   sectionCuts?: boolean;
+  mobileDrag?: boolean;
 }
 
-const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false } = Astro.props;
+const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false } = Astro.props;
 ---
 
 <div
@@ -17,6 +18,7 @@ const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = fals
   data-auto-rotate={String(autoRotate)}
   data-explode-button={String(explodeButton)}
   data-section-cuts={String(sectionCuts)}
+  data-mobile-drag={String(mobileDrag)}
 >
   <canvas class="viewer-canvas"></canvas>
   <slot />
@@ -90,6 +92,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
   const autoRotate      = root.dataset.autoRotate !== 'false';
   const showExplodeBtn  = root.dataset.explodeButton === 'true';
   const showSectionCuts = root.dataset.sectionCuts === 'true';
+  const mobileDrag      = root.dataset.mobileDrag === 'true';
 
   // ── Scene ──────────────────────────────────────────────────────
   const scene = new THREE.Scene();
@@ -165,7 +168,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
   // and block them unless the user has explicitly clicked to interact.
   // On mobile, touchAction = 'pan-y' lets vertical swipes reach the browser
   // scroll handler instead of OrbitControls' touch rotate/zoom handlers.
-  canvas.style.touchAction = 'pan-y';
+  canvas.style.touchAction = mobileDrag ? 'none' : 'pan-y';
 
   let userInteracting = false;
   let interactTimer = 0;
