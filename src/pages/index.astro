@@ -3,7 +3,6 @@ import Layout from '../layouts/Layout.astro';
 import ModelViewer from '../components/ModelViewer.astro';
 ---
 
-<<<<<<< HEAD
 <Layout title="Chase Fiore | Scenic Design & Photography">
 
   <!--
@@ -29,31 +28,10 @@ import ModelViewer from '../components/ModelViewer.astro';
             <span>Selected Works</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
           </div>
-=======
-<Layout title="Chase Fiore | Show Set Design">
-  <section class="landing">
-    <ModelViewer modelUrl="./models/SSE-draco.glb" height="100%" autoRotate={true} sectionCuts={true} mobileDrag={true}>
-      <div class="hero-overlay">
-        <div class="hero-text">
-          <h1>Chase Fiore</h1>
-          <p>Show Set Design</p>
->>>>>>> 50f2f56fedce198f09751ff44941a032be1a2339
         </div>
-        <a href="/portfolio/" class="work-cue">
-          <span>Selected Works</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
-        </a>
-      </div>
-    </ModelViewer>
-
-    <!-- Drifting caption lines — appear after first model interaction -->
-    <div id="drift-container" aria-hidden="true">
-      <span class="drift-line d1">Modeled in Revit</span>
-      <span class="drift-line d2">over the course of 10 days</span>
-      <span class="drift-line d3">by myself, for a school project</span>
-      <span class="drift-line d4">— 2020</span>
-    </div>
-  </section>
+      </ModelViewer>
+    </section>
+  </div>
 </Layout>
 
 <script>
