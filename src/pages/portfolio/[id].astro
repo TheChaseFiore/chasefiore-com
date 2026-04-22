@@ -2,7 +2,13 @@
 import Layout from '../../layouts/Layout.astro';
 import ModelViewer from '../../components/ModelViewer.astro';
 import { getCollection, render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
 import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+interface Props {
+  project: CollectionEntry<'portfolio'>;
+}
 
 export async function getStaticPaths() {
   const allProjects = await getCollection('portfolio');
@@ -15,6 +21,15 @@ export async function getStaticPaths() {
 const { project } = Astro.props;
 const { Content } = await render(project);
 const hasModel = Boolean(project.data.model);
+
+const allImages = import.meta.glob<{ default: ImageMetadata }>(
+  '/src/content/portfolio/**/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}',
+  { eager: true }
+);
+const galleryImages = Object.entries(allImages)
+  .filter(([path]) => path.includes(`/portfolio/${project.id}/`))
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([, mod]) => mod.default);
 ---
 
 <Layout title={`${project.data.title} | Chase Fiore`} description={project.data.description}>
@@ -23,7 +38,7 @@ const hasModel = Boolean(project.data.model);
     <!-- 3D viewer if model field is set, otherwise fall back to cover image -->
     {hasModel ? (
       <div class="media-wrap model-wrap">
-        <ModelViewer modelUrl={project.data.model} height="100%" autoRotate={true} />
+        <ModelViewer modelUrl={project.data.model} height="100%" autoRotate={true} explodeButton={true} sectionCuts={true} />
       </div>
     ) : project.data.coverImage ? (
       <div class="media-wrap cover-wrap">
@@ -40,8 +55,8 @@ const hasModel = Boolean(project.data.model);
     <div class="content-wrap">
       <nav class="breadcrumb">
         <a href="/">← All Work</a>
-        {project.data.tags && project.data.tags.map((tag) => (
-          <span class="tag">{tag}</span>
+        {project.data.tags && project.data.tags.map((tag: string) => (
+          <a class="tag" href={`/?tag=${encodeURIComponent(tag)}`}>{tag}</a>
         ))}
       </nav>
 
@@ -60,8 +75,94 @@ const hasModel = Boolean(project.data.model);
       </div>
     </div>
 
+    {galleryImages.length > 0 && (
+      <div class="gallery" id="gallery">
+        {galleryImages.map((img, i) => (
+          <button class="gallery-item" data-index={i} aria-label={`View image ${i + 1}`}>
+            <Image src={img} alt={project.data.title} width={1200} format="webp" loading="lazy" />
+          </button>
+        ))}
+      </div>
+    )}
+
   </article>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox" aria-modal="true" role="dialog" aria-label="Image viewer">
+    <button class="lb-close" id="lb-close" aria-label="Close">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <button class="lb-arrow lb-prev" id="lb-prev" aria-label="Previous">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="lb-stage">
+      <img class="lb-img" id="lb-img" src="" alt="" />
+    </div>
+    <button class="lb-arrow lb-next" id="lb-next" aria-label="Next">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <div class="lb-counter" id="lb-counter"></div>
+  </div>
 </Layout>
+
+<script>
+  function initLightbox() {
+    const gallery = document.getElementById('gallery');
+    const lightbox = document.getElementById('lightbox') as HTMLElement | null;
+    const lbImg = document.getElementById('lb-img') as HTMLImageElement | null;
+    const lbCounter = document.getElementById('lb-counter');
+    if (!gallery || !lightbox || !lbImg) return;
+
+    const items = Array.from(gallery.querySelectorAll<HTMLButtonElement>('.gallery-item'));
+    const srcs = items.map(btn => btn.querySelector('img')!.src);
+    let current = 0;
+
+    function show(idx: number) {
+      current = (idx + srcs.length) % srcs.length;
+      lbImg!.classList.remove('lb-img--visible');
+      // Swap src then re-trigger the entrance animation
+      requestAnimationFrame(() => {
+        lbImg!.src = srcs[current];
+        lbImg!.onload = () => lbImg!.classList.add('lb-img--visible');
+        // If already cached the onload may not fire
+        if (lbImg!.complete) lbImg!.classList.add('lb-img--visible');
+      });
+      if (lbCounter) lbCounter.textContent = `${current + 1} / ${srcs.length}`;
+    }
+
+    function open(idx: number) {
+      show(idx);
+      lightbox!.classList.add('lightbox--open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function close() {
+      lightbox!.classList.remove('lightbox--open');
+      lbImg!.classList.remove('lb-img--visible');
+      document.body.style.overflow = '';
+    }
+
+    items.forEach((btn, i) => btn.addEventListener('click', () => open(i)));
+
+    document.getElementById('lb-close')?.addEventListener('click', close);
+    document.getElementById('lb-prev')?.addEventListener('click', () => show(current - 1));
+    document.getElementById('lb-next')?.addEventListener('click', () => show(current + 1));
+
+    lightbox.addEventListener('click', (e) => {
+      if (e.target === lightbox) close();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (!lightbox.classList.contains('lightbox--open')) return;
+      if (e.key === 'Escape') close();
+      if (e.key === 'ArrowLeft') show(current - 1);
+      if (e.key === 'ArrowRight') show(current + 1);
+    });
+  }
+
+  document.addEventListener('astro:page-load', initLightbox);
+  initLightbox();
+</script>
 
 <style>
   article { flex: 1; }
@@ -119,6 +220,13 @@ const hasModel = Boolean(project.data.model);
     border: 1px solid rgba(200, 168, 122, 0.4);
     padding: 0.15rem 0.5rem;
     border-radius: 2px;
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .tag:hover {
+    background: rgba(200, 168, 122, 0.12);
+    border-color: var(--accent);
   }
 
   .project-header {
@@ -169,8 +277,136 @@ const hasModel = Boolean(project.data.model);
   .prose :global(blockquote) { border-left: 2px solid var(--accent); padding-left: 1.25rem; margin: 1.5rem 0; color: rgba(232,232,232,0.6); font-style: italic; }
   .prose :global(hr) { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
 
+  /* ── Gallery ── */
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 480px), 1fr));
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .gallery-item {
+    display: block;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: zoom-in;
+    overflow: hidden;
+  }
+
+  .gallery-item img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    aspect-ratio: 4 / 3;
+    transition: transform 0.4s cubic-bezier(0.25, 0, 0, 1), filter 0.3s ease;
+    filter: brightness(0.92);
+  }
+
+  .gallery-item:hover img {
+    transform: scale(1.03);
+    filter: brightness(1);
+  }
+
+  /* ── Lightbox ── */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.92);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .lightbox--open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .lb-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: calc(100vw - 120px);
+    max-height: calc(100dvh - 80px);
+  }
+
+  .lb-img {
+    max-width: 100%;
+    max-height: calc(100dvh - 80px);
+    object-fit: contain;
+    border-radius: 2px;
+    opacity: 0;
+    transform: scale(0.94);
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.25, 0, 0, 1);
+  }
+
+  .lb-img--visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .lb-close {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.25rem;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.75);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .lb-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+  .lb-arrow {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.75);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .lb-arrow:hover { background: rgba(255,255,255,0.15); color: #fff; }
+  .lb-prev { left: 1rem; }
+  .lb-next { right: 1rem; }
+
+  .lb-counter {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.4);
+  }
+
   @media (max-width: 600px) {
     .model-wrap { height: 55vw; min-height: 280px; }
     .content-wrap { padding: 2rem 1rem 4rem; }
+    .gallery { grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; }
+    .lb-stage { max-width: 100vw; }
+    .lb-arrow { display: none; }
   }
 </style>

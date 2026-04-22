@@ -2,7 +2,20 @@
   "permissions": {
     "allow": [
       "Bash(git lfs *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(curl -I \"https://assets.chasefiore.com/models/SSE-draco.glb\")",
+      "Bash(npx astro *)",
+      "Bash(git -C /home/chase/Documents/Astro-ChaseFiore log --oneline -5)",
+      "Bash(git -C /home/chase/Documents/Astro-ChaseFiore show HEAD --stat)",
+      "Bash(git -C /home/chase/Documents/Astro-ChaseFiore remote -v)",
+      "Bash(git -C /home/chase/Documents/Astro-ChaseFiore status -sb)",
+      "Bash(curl -sI \"https://chasefiore.com/draco/draco_decoder.wasm\")",
+      "Bash(curl -sI \"https://www.chasefiore.com/draco/draco_decoder.wasm\")",
+      "Bash(curl -sI \"https://chasefiore-com.pages.dev/draco/draco_decoder.wasm\")",
+      "Bash(curl -sI \"https://assets.chasefiore.com/models/SSE-draco.glb\" -H \"Origin: https://chasefiore-com.pages.dev\")",
+      "Bash(curl -s \"https://chasefiore-com.pages.dev/\")",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "Bash(npm run *)"
     ]
   }
 }

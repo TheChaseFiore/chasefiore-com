@@ -1,11 +1,14 @@
 ---
 interface Props {
-  modelUrl?: string;   // path to GLB in public/, e.g. "/models/ministry-of-magic.glb"
-  height?: string;     // CSS height value
+  modelUrl?: string;
+  height?: string;
   autoRotate?: boolean;
+  explodeButton?: boolean;
+  sectionCuts?: boolean;
+  mobileDrag?: boolean;
 }
 
-const { modelUrl = '', height = '500px', autoRotate = true } = Astro.props;
+const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false } = Astro.props;
 ---
 
 <div
@@ -13,6 +16,9 @@ const { modelUrl = '', height = '500px', autoRotate = true } = Astro.props;
   style={`height: ${height}`}
   data-model-url={modelUrl}
   data-auto-rotate={String(autoRotate)}
+  data-explode-button={String(explodeButton)}
+  data-section-cuts={String(sectionCuts)}
+  data-mobile-drag={String(mobileDrag)}
 >
   <canvas class="viewer-canvas"></canvas>
 
@@ -33,6 +39,31 @@ const { modelUrl = '', height = '500px', autoRotate = true } = Astro.props;
 
   <slot />
 
+  <button class="viewer-explode-btn" hidden aria-label="Explode model">
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/></svg>
+    <span>Explode</span>
+  </button>
+
+  {sectionCuts && (
+    <div class="viewer-cut-bar">
+      <button class="viewer-cut-btn" data-cut-axis="x" aria-label="X section cut" aria-pressed="false">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="1" width="10" height="10" rx="1"/><line x1="6" y1="1" x2="6" y2="11"/></svg>
+        X
+      </button>
+      <button class="viewer-cut-btn" data-cut-axis="y" aria-label="Y section cut" aria-pressed="false">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="1" width="10" height="10" rx="1"/><line x1="1" y1="6" x2="11" y2="6"/></svg>
+        Y
+      </button>
+      <button class="viewer-cut-btn" data-cut-axis="z" aria-label="Z section cut" aria-pressed="false">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="1" width="10" height="10" rx="1"/><line x1="1" y1="3" x2="11" y2="9"/></svg>
+        Z
+      </button>
+      <div class="viewer-cut-slider-wrap" hidden>
+        <input type="range" class="viewer-cut-slider" min="0" max="100" value="50" aria-label="Section cut position" />
+      </div>
+    </div>
+  )}
+
   <div class="viewer-hint">
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a7 7 0 0 1 7 7v1l2 1-2 1v3l-7 4-7-4v-3L3 10l2-1V9a7 7 0 0 1 7-7z"/><path d="M12 2v18"/></svg>
     <span>Drag to rotate</span>
@@ -43,6 +74,7 @@ const { modelUrl = '', height = '500px', autoRotate = true } = Astro.props;
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 type CleanupFn = () => void;
 const cleanups = new Map<Element, CleanupFn>();
@@ -52,22 +84,33 @@ interface ExplodePart {
   origin: THREE.Vector3;
   dir: THREE.Vector3;
   dist: number;
-  startAt: number; // scroll raw [0–1] when this part begins moving
-  endAt: number;   // scroll raw [0–1] when it reaches full displacement
+  startAt: number;
+  endAt: number;
 }
 
 function initAllViewers() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const el = entry.target as HTMLElement;
+      observer.unobserve(el);
+      el.setAttribute('data-viewer-init', '1');
+      cleanups.set(el, setupViewer(el));
+    });
+  }, { rootMargin: '100px' });
+
   document.querySelectorAll<HTMLElement>('.viewer-root:not([data-viewer-init])').forEach(el => {
-    el.setAttribute('data-viewer-init', '1');
-    const cleanup = setupViewer(el);
-    cleanups.set(el, cleanup);
+    observer.observe(el);
   });
 }
 
 function setupViewer(root: HTMLElement): CleanupFn {
   const canvas = root.querySelector<HTMLCanvasElement>('.viewer-canvas')!;
-  const modelUrl = root.dataset.modelUrl ?? '';
-  const autoRotate = root.dataset.autoRotate !== 'false';
+  const modelUrl        = root.dataset.modelUrl ?? '';
+  const autoRotate      = root.dataset.autoRotate !== 'false';
+  const showExplodeBtn  = root.dataset.explodeButton === 'true';
+  const showSectionCuts = root.dataset.sectionCuts === 'true';
+  const mobileDrag      = root.dataset.mobileDrag === 'true';
 
   // ── Scene ──────────────────────────────────────────────────────
   const scene = new THREE.Scene();
@@ -86,11 +129,20 @@ function setupViewer(root: HTMLElement): CleanupFn {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.2;
+  if (showSectionCuts) renderer.localClippingEnabled = true;
+
+  // ── Section clip planes (disabled by default with large constant) ──
+  const CLIP_OFF = 1e6;
+  const clipX = new THREE.Plane(new THREE.Vector3(-1, 0, 0), CLIP_OFF);
+  const clipY = new THREE.Plane(new THREE.Vector3(0, -1, 0), CLIP_OFF);
+  const clipZ = new THREE.Plane(new THREE.Vector3(0, 0, -1), CLIP_OFF);
+  if (showSectionCuts) renderer.clippingPlanes = [clipX, clipY, clipZ];
+
+  const cutBounds = { x: [-10, 10] as [number,number], y: [0, 8] as [number,number], z: [-10, 10] as [number,number] };
 
   // ── Lights ──────────────────────────────────────────────────────
   scene.add(new THREE.AmbientLight(0x120d08, 1.2));
 
-  // Key light — warm, elevated from upper front-right
   const keyLight = new THREE.DirectionalLight(0xfff0d8, 2.5);
   keyLight.position.set(5, 14, 10);
   keyLight.castShadow = true;
@@ -103,17 +155,14 @@ function setupViewer(root: HTMLElement): CleanupFn {
   keyLight.shadow.camera.bottom = -8;
   scene.add(keyLight);
 
-  // Cool fill from front-left for contrast
   const fillLight = new THREE.DirectionalLight(0x1a2d50, 0.5);
   fillLight.position.set(-10, 4, 5);
   scene.add(fillLight);
 
-  // Warm rim light from behind — separates subject from background
   const rimLight = new THREE.DirectionalLight(0xc8a87a, 0.9);
   rimLight.position.set(-2, 7, -14);
   scene.add(rimLight);
 
-  // Stage uplights — warm gold floor pools
   const uplightPositions = [[-4.5, 0.5, 0], [0, 0.5, 1], [4.5, 0.5, 0]] as const;
   uplightPositions.forEach(([x, y, z]) => {
     const upl = new THREE.PointLight(0xd4a870, 2.8, 10, 1.5);
@@ -133,7 +182,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
   controls.target.set(0, 3.5, 0);
 
   // ── Scroll / touch passthrough ──────────────────────────────────
-  canvas.style.touchAction = 'pan-y';
+  canvas.style.touchAction = mobileDrag ? 'none' : 'pan-y';
 
   let userInteracting = false;
   let interactTimer = 0;
@@ -144,7 +193,10 @@ function setupViewer(root: HTMLElement): CleanupFn {
     clearTimeout(interactTimer);
   };
   const onPointerUp = () => {
-    interactTimer = window.setTimeout(() => { userInteracting = false; }, 1500);
+    interactTimer = window.setTimeout(() => {
+      userInteracting = false;
+      if (autoRotate) controls.autoRotate = true;
+    }, 1500);
   };
 
   canvas.addEventListener('pointerdown', onPointerDown);
@@ -157,6 +209,27 @@ function setupViewer(root: HTMLElement): CleanupFn {
   // ── Explode ──────────────────────────────────────────────────────
   const explodeParts: ExplodePart[] = [];
   let explodeProgress = 0;
+  let explodeTarget   = 0;
+  let tweenFrom       = 0;
+  let tweenStart      = 0;
+  let tweenDur        = 0;
+  let tweenId         = 0;
+
+  function tweenExplode(to: number, duration: number) {
+    cancelAnimationFrame(tweenId);
+    tweenFrom  = explodeProgress;
+    explodeTarget = to;
+    tweenStart = performance.now();
+    tweenDur   = duration;
+    function step(now: number) {
+      const t = Math.min((now - tweenStart) / tweenDur, 1);
+      const e = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+      explodeProgress = tweenFrom + (explodeTarget - tweenFrom) * e;
+      if (t < 1) tweenId = requestAnimationFrame(step);
+      else explodeProgress = explodeTarget;
+    }
+    tweenId = requestAnimationFrame(step);
+  }
 
   const onExplode = (e: Event) => {
     explodeProgress = (e as CustomEvent<number>).detail;
@@ -168,59 +241,168 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   // ── Model / Placeholder ─────────────────────────────────────────
   if (modelUrl) {
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('/draco/');
+    dracoLoader.preload();
     const loader = new GLTFLoader();
-    loader.load(
-      modelUrl,
-      (gltf: GLTF) => {
-        const model = gltf.scene;
-        const box = new THREE.Box3().setFromObject(model);
-        const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const scale = 8 / maxDim;
-        model.scale.setScalar(scale);
-        model.position.sub(center.multiplyScalar(scale));
-        model.position.y += (size.y * scale) / 2;
-        model.traverse((child: THREE.Object3D) => {
-          if ((child as THREE.Mesh).isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
-        });
-        scene.add(model);
+    loader.setDRACOLoader(dracoLoader);
 
-        // Generic explode: push each top-level child away from model centre
-        if (model.children.length > 1) {
-          const modelCenter = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
-          model.children.forEach((child, idx) => {
-            const childCenter = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
-            const dir = childCenter.clone().sub(modelCenter);
-            const spread = dir.length();
-            dir.normalize();
-            if (dir.lengthSq() < 0.001) {
-              const a = (idx / model.children.length) * Math.PI * 2;
-              dir.set(Math.cos(a), 0.5, Math.sin(a)).normalize();
+    const scheduleLoad = (window as any).requestIdleCallback
+      ?? ((fn: () => void) => setTimeout(fn, 200));
+
+    scheduleLoad(() => {
+      loader.load(
+        modelUrl,
+        (gltf: GLTF) => {
+          const model = gltf.scene;
+          const box = new THREE.Box3().setFromObject(model);
+          const center = box.getCenter(new THREE.Vector3());
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const scale = 8 / maxDim;
+          model.scale.setScalar(scale);
+          model.position.sub(center.multiplyScalar(scale));
+          model.position.y += (size.y * scale) / 2;
+          model.traverse((child: THREE.Object3D) => {
+            if ((child as THREE.Mesh).isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
             }
-            explodeParts.push({ object: child, origin: child.position.clone(), dir, dist: Math.max(spread * 4, 8), startAt: 0.05, endAt: 0.75 });
           });
-        }
+          scene.add(model);
 
-        // Dismiss loading overlay
-        if (loadingEl) {
-          loadingEl.classList.add('is-loaded');
-          loadingEl.addEventListener('transitionend', () => loadingEl.remove(), { once: true });
+          // Update section cut bounds from actual model extents
+          if (showSectionCuts) {
+            const wb = new THREE.Box3().setFromObject(model);
+            cutBounds.x = [wb.min.x, wb.max.x];
+            cutBounds.y = [wb.min.y, wb.max.y];
+            cutBounds.z = [wb.min.z, wb.max.z];
+          }
+
+          // Drill down past single-child wrapper nodes (common in GLTF/Revit exports)
+          let explodeSource: THREE.Object3D[] = model.children.slice();
+          while (explodeSource.length === 1 && explodeSource[0].children.length > 0) {
+            explodeSource = explodeSource[0].children.slice();
+          }
+
+          if (explodeSource.length > 1) {
+            const childCenters = new Map<THREE.Object3D, THREE.Vector3>();
+            const modelLocalBox = new THREE.Box3();
+            explodeSource.forEach(child => {
+              const mesh = child as THREE.Mesh;
+              if (!mesh.isMesh || !mesh.geometry) return;
+              mesh.geometry.computeBoundingBox();
+              const gb = mesh.geometry.boundingBox;
+              if (!gb || gb.isEmpty()) return;
+              const ctr = gb.getCenter(new THREE.Vector3());
+              childCenters.set(child, ctr);
+              modelLocalBox.expandByPoint(ctr);
+            });
+
+            if (childCenters.size > 1) {
+              const localCenter = modelLocalBox.getCenter(new THREE.Vector3());
+              const localSize   = modelLocalBox.getSize(new THREE.Vector3());
+              const maxLocalDim = Math.max(localSize.x, localSize.y, localSize.z);
+              let partIdx = 0;
+              childCenters.forEach((ctr, child) => {
+                const toChild = ctr.clone().sub(localCenter);
+                const spread  = toChild.length();
+                let dir: THREE.Vector3;
+                if (spread > 0.001) {
+                  dir = toChild.divideScalar(spread);
+                } else {
+                  const a = (partIdx / childCenters.size) * Math.PI * 2;
+                  dir = new THREE.Vector3(Math.cos(a), 0.4, Math.sin(a)).normalize();
+                }
+                explodeParts.push({ object: child, origin: child.position.clone(), dir, dist: Math.max(spread * 2.5, maxLocalDim * 0.15), startAt: 0.05, endAt: 0.75 });
+                partIdx++;
+              });
+            }
+
+            if (showExplodeBtn && explodeParts.length > 0) {
+              const btn = root.querySelector<HTMLButtonElement>('.viewer-explode-btn')!;
+              const btnLabel = btn.querySelector('span')!;
+              btn.removeAttribute('hidden');
+              btn.addEventListener('click', () => {
+                const assembling = explodeTarget > 0.5;
+                if (assembling) {
+                  tweenExplode(0, 1800);
+                  btnLabel.textContent = 'Explode';
+                } else {
+                  tweenExplode(1, 2500);
+                  btnLabel.textContent = 'Assemble';
+                }
+              });
+            }
+          }
+
+          // Dismiss loading overlay with animation
+          if (loadingEl) {
+            loadingEl.classList.add('is-loaded');
+            loadingEl.addEventListener('transitionend', () => loadingEl.remove(), { once: true });
+          }
+        },
+        (event: ProgressEvent) => {
+          if (event.lengthComputable && loadingEl) {
+            const bar = loadingEl.querySelector<HTMLElement>('.loading-bar-fill');
+            if (bar) bar.style.width = `${(event.loaded / event.total) * 100}%`;
+          }
+        },
+        (err) => {
+          console.error('[ModelViewer] Failed to load', modelUrl, err);
+          if (loadingEl) {
+            loadingEl.textContent = 'Model unavailable';
+            (loadingEl as HTMLElement).style.opacity = '0.4';
+          }
         }
-      },
-      (event: ProgressEvent) => {
-        if (event.lengthComputable && loadingEl) {
-          const bar = loadingEl.querySelector<HTMLElement>('.loading-bar-fill');
-          if (bar) bar.style.width = `${(event.loaded / event.total) * 100}%`;
-        }
-      }
-    );
+      );
+    });
   } else {
     if (loadingEl) loadingEl.remove();
     explodeParts.push(...buildPlaceholder(scene));
+  }
+
+  // ── Section cut controls ──────────────────────────────────────────
+  if (showSectionCuts) {
+    const cutBtns    = root.querySelectorAll<HTMLButtonElement>('[data-cut-axis]');
+    const sliderWrap = root.querySelector<HTMLElement>('.viewer-cut-slider-wrap');
+    const slider     = root.querySelector<HTMLInputElement>('.viewer-cut-slider');
+    let activeCut: 'x' | 'y' | 'z' | null = null;
+
+    const getPlane = (a: 'x'|'y'|'z') => a === 'x' ? clipX : a === 'y' ? clipY : clipZ;
+
+    cutBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const axis = btn.dataset.cutAxis as 'x'|'y'|'z';
+        if (activeCut === axis) {
+          getPlane(axis).constant = CLIP_OFF;
+          btn.classList.remove('active');
+          btn.setAttribute('aria-pressed', 'false');
+          sliderWrap?.setAttribute('hidden', '');
+          activeCut = null;
+        } else {
+          if (activeCut) {
+            getPlane(activeCut).constant = CLIP_OFF;
+            root.querySelector(`[data-cut-axis="${activeCut}"]`)?.classList.remove('active');
+            root.querySelector(`[data-cut-axis="${activeCut}"]`)?.setAttribute('aria-pressed', 'false');
+          }
+          activeCut = axis;
+          btn.classList.add('active');
+          btn.setAttribute('aria-pressed', 'true');
+          const [mn, mx] = cutBounds[axis];
+          getPlane(axis).constant = (mn + mx) / 2;
+          if (slider) slider.value = '50';
+          sliderWrap?.removeAttribute('hidden');
+        }
+      });
+    });
+
+    slider?.addEventListener('input', () => {
+      if (!activeCut) return;
+      const t = parseFloat(slider!.value) / 100;
+      const [mn, mx] = cutBounds[activeCut];
+      getPlane(activeCut).constant = mn + (mx - mn) * t;
+    });
   }
 
   // ── Resize ──────────────────────────────────────────────────────
@@ -256,6 +438,8 @@ function setupViewer(root: HTMLElement): CleanupFn {
   // ── Cleanup ─────────────────────────────────────────────────────
   return () => {
     cancelAnimationFrame(rafId);
+    cancelAnimationFrame(tweenId);
+    clipX.constant = clipY.constant = clipZ.constant = CLIP_OFF;
     ro.disconnect();
     controls.dispose();
     renderer.dispose();
@@ -466,7 +650,7 @@ initAllViewers();
     transition: width 0.25s ease;
   }
 
-  /* ── Drag hint — top-right so it never clashes with bottom overlay ── */
+  /* ── Drag hint — top-right, away from bottom overlay content ── */
   .viewer-hint {
     position: absolute;
     top: 1rem;
@@ -484,5 +668,111 @@ initAllViewers();
 
   .viewer-root:hover .viewer-hint {
     opacity: 0;
+  }
+
+  .viewer-explode-btn[hidden] { display: none; }
+
+  /* ── Section cut bar ── */
+  .viewer-cut-bar {
+    position: absolute;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .viewer-cut-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(200, 168, 122, 0.6);
+    background: rgba(12, 12, 12, 0.55);
+    border: 1px solid rgba(200, 168, 122, 0.25);
+    border-radius: 2px;
+    padding: 0.3rem 0.55rem;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    backdrop-filter: blur(4px);
+  }
+
+  .viewer-cut-btn:hover {
+    color: var(--accent, #c8a87a);
+    border-color: rgba(200, 168, 122, 0.5);
+    background: rgba(12, 12, 12, 0.8);
+  }
+
+  .viewer-cut-btn.active {
+    color: var(--accent, #c8a87a);
+    border-color: var(--accent, #c8a87a);
+    background: rgba(200, 168, 122, 0.12);
+  }
+
+  .viewer-cut-slider-wrap {
+    display: flex;
+    align-items: center;
+    margin-left: 4px;
+  }
+
+  .viewer-cut-slider-wrap[hidden] { display: none; }
+
+  .viewer-cut-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 90px;
+    height: 2px;
+    background: rgba(200, 168, 122, 0.25);
+    border-radius: 1px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .viewer-cut-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent, #c8a87a);
+    cursor: grab;
+    border: 2px solid rgba(12, 12, 12, 0.8);
+  }
+
+  .viewer-cut-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent, #c8a87a);
+    cursor: grab;
+    border: 2px solid rgba(12, 12, 12, 0.8);
+  }
+
+  .viewer-explode-btn {
+    position: absolute;
+    bottom: 1.25rem;
+    left: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(200, 168, 122, 0.6);
+    background: rgba(12, 12, 12, 0.55);
+    border: 1px solid rgba(200, 168, 122, 0.25);
+    border-radius: 2px;
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    backdrop-filter: blur(4px);
+  }
+
+  .viewer-explode-btn:hover {
+    color: var(--accent, #c8a87a);
+    border-color: rgba(200, 168, 122, 0.6);
+    background: rgba(12, 12, 12, 0.8);
   }
 </style>

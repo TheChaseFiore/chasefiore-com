@@ -1,0 +1,11 @@
+name = "r2-upload-worker"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "public-chasefiore-com"
+
+[vars]
+# AUTH_SECRET is set via: wrangler secret put AUTH_SECRET
+# Never commit the actual secret value here
