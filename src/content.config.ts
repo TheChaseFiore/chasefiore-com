@@ -15,6 +15,7 @@ const portfolioCollection = defineCollection({
     tags: z.array(z.string()).optional(),
     youtubeId: z.string().optional(),
     youtubeStart: z.number().optional(),
+    initialCutZ: z.number().optional(),
   }),
 });
 

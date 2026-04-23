@@ -10,9 +10,10 @@ interface Props {
   cameraPos?: [number, number, number];
   cameraTgt?: [number, number, number];
   cycleModels?: Array<{url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number]}>;
+  initialCutZ?: number;
 }
 
-const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false, fallbackImage = '', cameraPos, cameraTgt, cycleModels } = Astro.props;
+const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false, fallbackImage = '', cameraPos, cameraTgt, cycleModels, initialCutZ } = Astro.props;
 ---
 
 <div
@@ -27,6 +28,7 @@ const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = fals
   data-camera-pos={cameraPos ? JSON.stringify(cameraPos) : ''}
   data-camera-tgt={cameraTgt ? JSON.stringify(cameraTgt) : ''}
   data-cycle-models={cycleModels ? JSON.stringify(cycleModels) : ''}
+  data-initial-cut-z={initialCutZ !== undefined ? String(initialCutZ) : ''}
 >
   <canvas class="viewer-canvas"></canvas>
 
@@ -159,6 +161,8 @@ function setupViewer(root: HTMLElement): CleanupFn {
   // ── Renderer ────────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.2;
   if (showSectionCuts) renderer.localClippingEnabled = true;
@@ -172,22 +176,35 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   const cutBounds = { x: [-10, 10] as [number,number], y: [0, 8] as [number,number], z: [-10, 10] as [number,number] };
 
-  // ── Lights — three-point rig attached to camera ──────────────────
-  // Lights follow the viewer so illumination stays consistent as the model rotates.
-  scene.add(camera);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  // ── Lights ──────────────────────────────────────────────────────
+  scene.add(new THREE.AmbientLight(0x120d08, 1.2));
 
-  const keyLight = new THREE.DirectionalLight(0xfff8f0, 2.6);
-  keyLight.position.set(-3, 4, 2);
-  camera.add(keyLight);
+  const keyLight = new THREE.DirectionalLight(0xfff0d8, 2.5);
+  keyLight.position.set(5, 14, 10);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 50;
+  keyLight.shadow.camera.left = -15;
+  keyLight.shadow.camera.right = 15;
+  keyLight.shadow.camera.top = 15;
+  keyLight.shadow.camera.bottom = -8;
+  scene.add(keyLight);
 
-  const fillLight = new THREE.DirectionalLight(0xf0f4ff, 0.9);
-  fillLight.position.set(4, -1, 1);
-  camera.add(fillLight);
+  const fillLight = new THREE.DirectionalLight(0x1a2d50, 0.5);
+  fillLight.position.set(-10, 4, 5);
+  scene.add(fillLight);
 
-  const rimLight = new THREE.DirectionalLight(0xffd080, 1.1);
-  rimLight.position.set(0, 2, -10);
-  camera.add(rimLight);
+  const rimLight = new THREE.DirectionalLight(0xc8a87a, 0.9);
+  rimLight.position.set(-2, 7, -14);
+  scene.add(rimLight);
+
+  const uplightPositions = [[-4.5, 0.5, 0], [0, 0.5, 1], [4.5, 0.5, 0]] as const;
+  uplightPositions.forEach(([x, y, z]) => {
+    const upl = new THREE.PointLight(0xd4a870, 2.8, 10, 1.5);
+    upl.position.set(x, y, z);
+    scene.add(upl);
+  });
 
   // ── Controls ────────────────────────────────────────────────────
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -351,18 +368,13 @@ function setupViewer(root: HTMLElement): CleanupFn {
   async function doTransition(gltf: GLTF, config: CycleEntry): Promise<void> {
     if (!cycleActive || !transOverlay) return;
 
-    // Explode current model outward before fading
-    if (cycleExplodeParts.length > 0) {
-      await tweenCycleExplode(0, 1, 1500);
-    }
-    if (!cycleActive) return;
-
-    // Fade to black
+    // Explosion and fade-to-black run simultaneously — never a static exploded state
     transOverlay.classList.add('is-active');
+    if (cycleExplodeParts.length > 0) tweenCycleExplode(0, 1, 1000);
     await new Promise<void>(res => setTimeout(res, 1000));
     if (!cycleActive) return;
 
-    // Swap model, start in exploded state
+    // Swap model while screen is black
     if (cycleModelGroup) scene.remove(cycleModelGroup);
     const newModel = prepareGltf(gltf);
     cycleExplodeParts = buildExplodeParts(newModel);
@@ -379,14 +391,13 @@ function setupViewer(root: HTMLElement): CleanupFn {
     controls.target.set(...newTgt);
     controls.update();
 
-    // Fade back in
+    // Assembly and fade-from-black run simultaneously — model assembles as it comes into view
     await new Promise<void>(res => requestAnimationFrame(() => res()));
     transOverlay.classList.remove('is-active');
-    await new Promise<void>(res => setTimeout(res, 900));
-
-    // Assemble new model
     if (cycleActive && cycleExplodeParts.length > 0) {
       await tweenCycleExplode(1, 0, 2000);
+    } else {
+      await new Promise<void>(res => setTimeout(res, 900));
     }
   }
 
@@ -446,6 +457,16 @@ function setupViewer(root: HTMLElement): CleanupFn {
         cutBounds.x = [wb.min.x, wb.max.x];
         cutBounds.y = [wb.min.y, wb.max.y];
         cutBounds.z = [wb.min.z, wb.max.z];
+
+        const initialCutZ = root.dataset.initialCutZ ? parseFloat(root.dataset.initialCutZ) : NaN;
+        if (!isNaN(initialCutZ)) {
+          root.querySelector<HTMLButtonElement>('[data-cut-axis="z"]')?.click();
+          const slider = root.querySelector<HTMLInputElement>('.viewer-cut-slider');
+          if (slider) {
+            slider.value = String(initialCutZ);
+            slider.dispatchEvent(new Event('input'));
+          }
+        }
       }
 
       // Manual explode button (portfolio pages only — not used when cycling)
@@ -479,18 +500,19 @@ function setupViewer(root: HTMLElement): CleanupFn {
         }
       }
 
-      const afterLoaded = () => {
+      if (loadingEl) {
+        loadingEl.classList.add('is-loaded');
+        // Assembly starts concurrent with loading overlay fade — model assembles as it comes into view
+        if (cycleList.length > 0 && cycleExplodeParts.length > 0) tweenCycleExplode(1, 0, 2000);
+        loadingEl.addEventListener('transitionend', () => {
+          loadingEl.remove();
+          if (cycleList.length > 0) startCycle(model);
+        }, { once: true });
+      } else {
         if (cycleList.length > 0) {
           if (cycleExplodeParts.length > 0) tweenCycleExplode(1, 0, 2000);
           startCycle(model);
         }
-      };
-
-      if (loadingEl) {
-        loadingEl.classList.add('is-loaded');
-        loadingEl.addEventListener('transitionend', () => { loadingEl.remove(); afterLoaded(); }, { once: true });
-      } else {
-        afterLoaded();
       }
     }
 
