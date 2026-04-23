@@ -19,37 +19,25 @@ import ModelViewer from '../components/ModelViewer.astro';
         cameraPos={[-1.88, 1.31, -3.15]}
         cameraTgt={[-0.49, 0.12, 0.08]}
         cycleModels={[
-          {url: '/models/Charlie_Brown-draco.glb', cameraPos: [4.58, 2.40, 5.21], cameraTgt: [1.25, 0.84, 0.31]},
           {url: '/models/Streetcar-draco.glb', cameraPos: [-2.94, 0.42, 1.03], cameraTgt: [0.56, 0.56, 0.67]},
-          {url: '/models/Coffee_Shop-draco.glb', cameraPos: [4.5, 5.5, 7], cameraTgt: [0, 3.5, 0]},
+          {url: '/models/Charlie_Brown-draco.glb', cameraPos: [4.58, 2.40, 5.21], cameraTgt: [1.25, 0.84, 0.31]},
+          {url: '/models/Coffee_Shop-draco.glb', cameraPos: [-1.59, 1.17, 5.09], cameraTgt: [-2.66, 0.83, 1.52]},
           {url: '/models/SSE-draco.glb', cameraPos: [-1.88, 1.31, -3.15], cameraTgt: [-0.49, 0.12, 0.08]},
         ]}
       >
         <div class="hero-overlay">
           <div class="hero-text">
             <svg class="hero-name-svg" viewBox="0 0 600 108" xmlns="http://www.w3.org/2000/svg" aria-label="Chase Fiore" role="img">
-              <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
-              <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
-              <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
-              <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
-              <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
+              <text x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3" fill="rgba(255,255,255,0.92)">Chase Fiore</text>
             </svg>
             <p>Scenic &amp; Technical Design</p>
-          </div>
-          <div class="work-cue" aria-hidden="true">
-            <span>Selected Works</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
           </div>
         </div>
       </ModelViewer>
 
       <div class="hero-name-mobile" aria-hidden="true">
-        <svg class="hero-name-svg" viewBox="0 0 600 108" xmlns="http://www.w3.org/2000/svg">
-          <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
-          <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
-          <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
-          <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
-          <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
+        <svg class="hero-name-svg" viewBox="0 0 600 108" xmlns="http://www.w3.org/2000/svg" aria-label="Chase Fiore">
+          <text x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3" fill="rgba(255,255,255,0.92)">Chase Fiore</text>
         </svg>
         <p>Scenic &amp; Technical Design</p>
       </div>
@@ -59,6 +47,11 @@ import ModelViewer from '../components/ModelViewer.astro';
 
 
 <style>
+  /* ── Disable scroll on landing page ── */
+  :global(body) {
+    overflow: hidden;
+  }
+
   /* ── Hero layout ── */
   .hero-pin {
     height: calc(100dvh - var(--nav-height));
@@ -72,6 +65,7 @@ import ModelViewer from '../components/ModelViewer.astro';
   .hero-overlay {
     position: absolute;
     inset: 0;
+    z-index: 11;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -98,51 +92,12 @@ import ModelViewer from '../components/ModelViewer.astro';
     filter: drop-shadow(0 2px 16px rgba(0,0,0,0.75));
   }
 
-  .hero-name-svg .name-copy {
-    fill: none;
-    stroke-dasharray: 6% 29%;
-    stroke-width: 2px;
-    stroke-dashoffset: 0%;
-    animation: name-march 5.5s infinite linear;
-  }
-
-  .hero-name-svg .name-copy:nth-child(1) { stroke: rgba(255,255,255,0.12); animation-delay: -1s; }
-  .hero-name-svg .name-copy:nth-child(2) { stroke: #c8a87a;               animation-delay: -2s; }
-  .hero-name-svg .name-copy:nth-child(3) { stroke: rgba(255,255,255,0.85); animation-delay: -3s; }
-  .hero-name-svg .name-copy:nth-child(4) { stroke: rgba(200,168,122,0.5);  animation-delay: -4s; }
-  .hero-name-svg .name-copy:nth-child(5) { stroke: rgba(255,255,255,0.28); animation-delay: -5s; }
-
-  @keyframes name-march {
-    100% { stroke-dashoffset: -35%; }
-  }
-
   .hero-text p {
     font-size: clamp(0.75rem, 1.2vw, 0.9rem);
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--accent);
     margin-top: 0;
-  }
-
-  .work-cue {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.7rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.4);
-    pointer-events: auto;
-    text-decoration: none;
-    transition: color 0.2s;
-    animation: cue-bob 2s ease-in-out infinite;
-  }
-
-  .work-cue:hover { color: var(--accent); }
-
-  @keyframes cue-bob {
-    0%, 100% { transform: translateY(0); }
-    50%       { transform: translateY(4px); }
   }
 
   /* ── Mobile name (below model) ── */

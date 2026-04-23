@@ -4,5 +4,7 @@ description: "Concept design and 3D model for a specialty coffee shop, exploring
 publishDate: 2020-06-01
 coverImage: ./interior-design-01.png
 model: /models/Coffee_Shop-draco.glb
+cameraPos: [-1.59, 1.17, 5.09]
+cameraTgt: [-2.66, 0.83, 1.52]
 tags: ["Interior Design", "Rendering"]
 ---

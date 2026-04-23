@@ -142,6 +142,9 @@ function setupViewer(root: HTMLElement): CleanupFn {
   let cycleActive = false;
   let cycleModelGroup: THREE.Object3D | null = null;
   let cycleIdx = 0;
+  let cycleExplodeParts: ExplodePart[] = [];
+  let cycleExplodeProgress = 0;
+  let cycleExplodeTweenId = 0;
 
   // ── Scene ──────────────────────────────────────────────────────
   const scene = new THREE.Scene();
@@ -156,8 +159,6 @@ function setupViewer(root: HTMLElement): CleanupFn {
   // ── Renderer ────────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.2;
   if (showSectionCuts) renderer.localClippingEnabled = true;
@@ -171,35 +172,22 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   const cutBounds = { x: [-10, 10] as [number,number], y: [0, 8] as [number,number], z: [-10, 10] as [number,number] };
 
-  // ── Lights ──────────────────────────────────────────────────────
-  scene.add(new THREE.AmbientLight(0x120d08, 1.2));
+  // ── Lights — three-point rig attached to camera ──────────────────
+  // Lights follow the viewer so illumination stays consistent as the model rotates.
+  scene.add(camera);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
 
-  const keyLight = new THREE.DirectionalLight(0xfff0d8, 2.5);
-  keyLight.position.set(5, 14, 10);
-  keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(2048, 2048);
-  keyLight.shadow.camera.near = 0.5;
-  keyLight.shadow.camera.far = 50;
-  keyLight.shadow.camera.left = -15;
-  keyLight.shadow.camera.right = 15;
-  keyLight.shadow.camera.top = 15;
-  keyLight.shadow.camera.bottom = -8;
-  scene.add(keyLight);
+  const keyLight = new THREE.DirectionalLight(0xfff8f0, 2.6);
+  keyLight.position.set(-3, 4, 2);
+  camera.add(keyLight);
 
-  const fillLight = new THREE.DirectionalLight(0x1a2d50, 0.5);
-  fillLight.position.set(-10, 4, 5);
-  scene.add(fillLight);
+  const fillLight = new THREE.DirectionalLight(0xf0f4ff, 0.9);
+  fillLight.position.set(4, -1, 1);
+  camera.add(fillLight);
 
-  const rimLight = new THREE.DirectionalLight(0xc8a87a, 0.9);
-  rimLight.position.set(-2, 7, -14);
-  scene.add(rimLight);
-
-  const uplightPositions = [[-4.5, 0.5, 0], [0, 0.5, 1], [4.5, 0.5, 0]] as const;
-  uplightPositions.forEach(([x, y, z]) => {
-    const upl = new THREE.PointLight(0xd4a870, 2.8, 10, 1.5);
-    upl.position.set(x, y, z);
-    scene.add(upl);
-  });
+  const rimLight = new THREE.DirectionalLight(0xffd080, 1.1);
+  rimLight.position.set(0, 2, -10);
+  camera.add(rimLight);
 
   // ── Controls ────────────────────────────────────────────────────
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -304,25 +292,102 @@ function setupViewer(root: HTMLElement): CleanupFn {
     return model;
   }
 
-  function doTransition(gltf: GLTF, config: CycleEntry): Promise<void> {
-    return new Promise(resolve => {
-      if (!cycleActive || !transOverlay) { resolve(); return; }
-      transOverlay.classList.add('is-active');
-      setTimeout(() => {
-        if (!cycleActive) { resolve(); return; }
-        if (cycleModelGroup) scene.remove(cycleModelGroup);
-        const newModel = prepareGltf(gltf);
-        scene.add(newModel);
-        cycleModelGroup = newModel;
-        const newPos = config.cameraPos ?? cameraPos;
-        const newTgt = config.cameraTgt ?? cameraTgt;
-        camera.position.set(...newPos);
-        controls.target.set(...newTgt);
-        controls.update();
-        transOverlay!.classList.remove('is-active');
-        setTimeout(resolve, 900);
-      }, 900);
+  function buildExplodeParts(model: THREE.Group): ExplodePart[] {
+    const parts: ExplodePart[] = [];
+    let source: THREE.Object3D[] = model.children.slice();
+    while (source.length === 1 && source[0].children.length > 0) {
+      source = source[0].children.slice();
+    }
+    if (source.length <= 1) return parts;
+    const childCenters = new Map<THREE.Object3D, THREE.Vector3>();
+    const modelBox = new THREE.Box3();
+    source.forEach(child => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.geometry) return;
+      mesh.geometry.computeBoundingBox();
+      const gb = mesh.geometry.boundingBox;
+      if (!gb || gb.isEmpty()) return;
+      const ctr = gb.getCenter(new THREE.Vector3());
+      childCenters.set(child, ctr);
+      modelBox.expandByPoint(ctr);
     });
+    if (childCenters.size <= 1) return parts;
+    const center = modelBox.getCenter(new THREE.Vector3());
+    const size = modelBox.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    let idx = 0;
+    childCenters.forEach((ctr, child) => {
+      const toChild = ctr.clone().sub(center);
+      const spread = toChild.length();
+      let dir: THREE.Vector3;
+      if (spread > 0.001) {
+        dir = toChild.divideScalar(spread);
+      } else {
+        const a = (idx / childCenters.size) * Math.PI * 2;
+        dir = new THREE.Vector3(Math.cos(a), 0.4, Math.sin(a)).normalize();
+      }
+      parts.push({ object: child, origin: child.position.clone(), dir, dist: Math.max(spread * 2.5, maxDim * 0.15), startAt: 0.05, endAt: 0.75 });
+      idx++;
+    });
+    return parts;
+  }
+
+  function tweenCycleExplode(from: number, to: number, duration: number): Promise<void> {
+    return new Promise(resolve => {
+      cancelAnimationFrame(cycleExplodeTweenId);
+      const startTime = performance.now();
+      function step(now: number) {
+        if (!cycleActive) { resolve(); return; }
+        const t = Math.min((now - startTime) / duration, 1);
+        const e = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+        cycleExplodeProgress = from + (to - from) * e;
+        if (t < 1) cycleExplodeTweenId = requestAnimationFrame(step);
+        else { cycleExplodeProgress = to; resolve(); }
+      }
+      cycleExplodeTweenId = requestAnimationFrame(step);
+    });
+  }
+
+  async function doTransition(gltf: GLTF, config: CycleEntry): Promise<void> {
+    if (!cycleActive || !transOverlay) return;
+
+    // Explode current model outward before fading
+    if (cycleExplodeParts.length > 0) {
+      await tweenCycleExplode(0, 1, 1500);
+    }
+    if (!cycleActive) return;
+
+    // Fade to black
+    transOverlay.classList.add('is-active');
+    await new Promise<void>(res => setTimeout(res, 1000));
+    if (!cycleActive) return;
+
+    // Swap model, start in exploded state
+    if (cycleModelGroup) scene.remove(cycleModelGroup);
+    const newModel = prepareGltf(gltf);
+    cycleExplodeParts = buildExplodeParts(newModel);
+    cycleExplodeProgress = 1;
+    for (const p of cycleExplodeParts) {
+      p.object.position.copy(p.origin).addScaledVector(p.dir, p.dist);
+    }
+    scene.add(newModel);
+    cycleModelGroup = newModel;
+
+    const newPos = config.cameraPos ?? cameraPos;
+    const newTgt = config.cameraTgt ?? cameraTgt;
+    camera.position.set(...newPos);
+    controls.target.set(...newTgt);
+    controls.update();
+
+    // Fade back in
+    await new Promise<void>(res => requestAnimationFrame(() => res()));
+    transOverlay.classList.remove('is-active');
+    await new Promise<void>(res => setTimeout(res, 900));
+
+    // Assemble new model
+    if (cycleActive && cycleExplodeParts.length > 0) {
+      await tweenCycleExplode(1, 0, 2000);
+    }
   }
 
   async function runNextCycle(): Promise<void> {
@@ -332,7 +397,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
     try {
       const [gltf] = await Promise.all([
         loadGltfAsync(config.url),
-        new Promise<void>(res => setTimeout(res, 6000)),
+        new Promise<void>(res => setTimeout(res, 8000)),
       ]);
       if (!cycleActive) return;
       await doTransition(gltf, config);
@@ -383,45 +448,9 @@ function setupViewer(root: HTMLElement): CleanupFn {
         cutBounds.z = [wb.min.z, wb.max.z];
       }
 
-      let explodeSource: THREE.Object3D[] = model.children.slice();
-      while (explodeSource.length === 1 && explodeSource[0].children.length > 0) {
-        explodeSource = explodeSource[0].children.slice();
-      }
-
-      if (explodeSource.length > 1) {
-        const childCenters = new Map<THREE.Object3D, THREE.Vector3>();
-        const modelLocalBox = new THREE.Box3();
-        explodeSource.forEach(child => {
-          const mesh = child as THREE.Mesh;
-          if (!mesh.isMesh || !mesh.geometry) return;
-          mesh.geometry.computeBoundingBox();
-          const gb = mesh.geometry.boundingBox;
-          if (!gb || gb.isEmpty()) return;
-          const ctr = gb.getCenter(new THREE.Vector3());
-          childCenters.set(child, ctr);
-          modelLocalBox.expandByPoint(ctr);
-        });
-
-        if (childCenters.size > 1) {
-          const localCenter = modelLocalBox.getCenter(new THREE.Vector3());
-          const localSize   = modelLocalBox.getSize(new THREE.Vector3());
-          const maxLocalDim = Math.max(localSize.x, localSize.y, localSize.z);
-          let partIdx = 0;
-          childCenters.forEach((ctr, child) => {
-            const toChild = ctr.clone().sub(localCenter);
-            const spread  = toChild.length();
-            let dir: THREE.Vector3;
-            if (spread > 0.001) {
-              dir = toChild.divideScalar(spread);
-            } else {
-              const a = (partIdx / childCenters.size) * Math.PI * 2;
-              dir = new THREE.Vector3(Math.cos(a), 0.4, Math.sin(a)).normalize();
-            }
-            explodeParts.push({ object: child, origin: child.position.clone(), dir, dist: Math.max(spread * 2.5, maxLocalDim * 0.15), startAt: 0.05, endAt: 0.75 });
-            partIdx++;
-          });
-        }
-
+      // Manual explode button (portfolio pages only — not used when cycling)
+      if (!cycleList.length) {
+        explodeParts.push(...buildExplodeParts(model));
         if (showExplodeBtn && explodeParts.length > 0) {
           const btn = root.querySelector<HTMLButtonElement>('.viewer-explode-btn')!;
           const btnLabel = btn.querySelector('span')!;
@@ -439,12 +468,30 @@ function setupViewer(root: HTMLElement): CleanupFn {
         }
       }
 
-      if (loadingEl) {
-        loadingEl.classList.add('is-loaded');
-        loadingEl.addEventListener('transitionend', () => loadingEl.remove(), { once: true });
+      // Cycle: start model in fully exploded state; assemble after loading overlay fades
+      if (cycleList.length > 0) {
+        cycleExplodeParts = buildExplodeParts(model);
+        if (cycleExplodeParts.length > 0) {
+          cycleExplodeProgress = 1;
+          for (const p of cycleExplodeParts) {
+            p.object.position.copy(p.origin).addScaledVector(p.dir, p.dist);
+          }
+        }
       }
 
-      startCycle(model);
+      const afterLoaded = () => {
+        if (cycleList.length > 0) {
+          if (cycleExplodeParts.length > 0) tweenCycleExplode(1, 0, 2000);
+          startCycle(model);
+        }
+      };
+
+      if (loadingEl) {
+        loadingEl.classList.add('is-loaded');
+        loadingEl.addEventListener('transitionend', () => { loadingEl.remove(); afterLoaded(); }, { once: true });
+      } else {
+        afterLoaded();
+      }
     }
 
     function onProgress(event: ProgressEvent) {
@@ -580,6 +627,14 @@ function setupViewer(root: HTMLElement): CleanupFn {
       }
     }
 
+    if (cycleExplodeProgress > 0.001 && cycleExplodeParts.length > 0) {
+      for (const p of cycleExplodeParts) {
+        const local = Math.min(Math.max((cycleExplodeProgress - p.startAt) / (p.endAt - p.startAt), 0), 1);
+        const eased = local * local * (3 - 2 * local);
+        p.object.position.copy(p.origin).addScaledVector(p.dir, p.dist * eased);
+      }
+    }
+
     renderer.render(scene, camera);
 
     if (debugVisible && ++debugFrame % 6 === 0) {
@@ -602,6 +657,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
     cycleActive = false;
     cancelAnimationFrame(rafId);
     cancelAnimationFrame(tweenId);
+    cancelAnimationFrame(cycleExplodeTweenId);
     clipX.constant = clipY.constant = clipZ.constant = CLIP_OFF;
     ro.disconnect();
     controls.dispose();
@@ -612,6 +668,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
     root.removeEventListener('viewer:explode', onExplode);
     clearTimeout(interactTimer);
     for (const p of explodeParts) p.object.position.copy(p.origin);
+    for (const p of cycleExplodeParts) p.object.position.copy(p.origin);
     root.removeAttribute('data-viewer-init');
   };
 }
