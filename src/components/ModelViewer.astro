@@ -255,125 +255,137 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   // ── Model / Placeholder ─────────────────────────────────────────
   if (modelUrl) {
-    const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath('/draco/');
-    const loader = new GLTFLoader();
-    loader.setDRACOLoader(dracoLoader);
-
     const scheduleLoad = (window as any).requestIdleCallback
       ?? ((fn: () => void) => setTimeout(fn, 200));
 
-    scheduleLoad(() => {
-      loader.load(
-        modelUrl,
-        (gltf: GLTF) => {
-          const model = gltf.scene;
-          const box = new THREE.Box3().setFromObject(model);
-          const center = box.getCenter(new THREE.Vector3());
-          const size = box.getSize(new THREE.Vector3());
-          const maxDim = Math.max(size.x, size.y, size.z);
-          const scale = 8 / maxDim;
-          model.scale.setScalar(scale);
-          model.position.sub(center.multiplyScalar(scale));
-          model.position.y += (size.y * scale) / 2;
-          model.traverse((child: THREE.Object3D) => {
-            if ((child as THREE.Mesh).isMesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
+    function onModelLoaded(gltf: GLTF) {
+      const model = gltf.scene;
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 8 / maxDim;
+      model.scale.setScalar(scale);
+      model.position.sub(center.multiplyScalar(scale));
+      model.position.y += (size.y * scale) / 2;
+      model.traverse((child: THREE.Object3D) => {
+        if ((child as THREE.Mesh).isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+      scene.add(model);
+
+      if (showSectionCuts) {
+        const wb = new THREE.Box3().setFromObject(model);
+        cutBounds.x = [wb.min.x, wb.max.x];
+        cutBounds.y = [wb.min.y, wb.max.y];
+        cutBounds.z = [wb.min.z, wb.max.z];
+      }
+
+      let explodeSource: THREE.Object3D[] = model.children.slice();
+      while (explodeSource.length === 1 && explodeSource[0].children.length > 0) {
+        explodeSource = explodeSource[0].children.slice();
+      }
+
+      if (explodeSource.length > 1) {
+        const childCenters = new Map<THREE.Object3D, THREE.Vector3>();
+        const modelLocalBox = new THREE.Box3();
+        explodeSource.forEach(child => {
+          const mesh = child as THREE.Mesh;
+          if (!mesh.isMesh || !mesh.geometry) return;
+          mesh.geometry.computeBoundingBox();
+          const gb = mesh.geometry.boundingBox;
+          if (!gb || gb.isEmpty()) return;
+          const ctr = gb.getCenter(new THREE.Vector3());
+          childCenters.set(child, ctr);
+          modelLocalBox.expandByPoint(ctr);
+        });
+
+        if (childCenters.size > 1) {
+          const localCenter = modelLocalBox.getCenter(new THREE.Vector3());
+          const localSize   = modelLocalBox.getSize(new THREE.Vector3());
+          const maxLocalDim = Math.max(localSize.x, localSize.y, localSize.z);
+          let partIdx = 0;
+          childCenters.forEach((ctr, child) => {
+            const toChild = ctr.clone().sub(localCenter);
+            const spread  = toChild.length();
+            let dir: THREE.Vector3;
+            if (spread > 0.001) {
+              dir = toChild.divideScalar(spread);
+            } else {
+              const a = (partIdx / childCenters.size) * Math.PI * 2;
+              dir = new THREE.Vector3(Math.cos(a), 0.4, Math.sin(a)).normalize();
+            }
+            explodeParts.push({ object: child, origin: child.position.clone(), dir, dist: Math.max(spread * 2.5, maxLocalDim * 0.15), startAt: 0.05, endAt: 0.75 });
+            partIdx++;
+          });
+        }
+
+        if (showExplodeBtn && explodeParts.length > 0) {
+          const btn = root.querySelector<HTMLButtonElement>('.viewer-explode-btn')!;
+          const btnLabel = btn.querySelector('span')!;
+          btn.removeAttribute('hidden');
+          btn.addEventListener('click', () => {
+            const assembling = explodeTarget > 0.5;
+            if (assembling) {
+              tweenExplode(0, 1800);
+              btnLabel.textContent = 'Explode';
+            } else {
+              tweenExplode(1, 2500);
+              btnLabel.textContent = 'Assemble';
             }
           });
-          scene.add(model);
+        }
+      }
 
-          // Update section cut bounds from actual model extents
-          if (showSectionCuts) {
-            const wb = new THREE.Box3().setFromObject(model);
-            cutBounds.x = [wb.min.x, wb.max.x];
-            cutBounds.y = [wb.min.y, wb.max.y];
-            cutBounds.z = [wb.min.z, wb.max.z];
-          }
+      if (loadingEl) {
+        loadingEl.classList.add('is-loaded');
+        loadingEl.addEventListener('transitionend', () => loadingEl.remove(), { once: true });
+      }
+    }
 
-          // Drill down past single-child wrapper nodes (common in GLTF/Revit exports)
-          let explodeSource: THREE.Object3D[] = model.children.slice();
-          while (explodeSource.length === 1 && explodeSource[0].children.length > 0) {
-            explodeSource = explodeSource[0].children.slice();
-          }
+    function onProgress(event: ProgressEvent) {
+      if (event.lengthComputable && loadingEl) {
+        const bar = loadingEl.querySelector<HTMLElement>('.loading-bar-fill');
+        if (bar) bar.style.width = `${(event.loaded / event.total) * 100}%`;
+      }
+    }
 
-          if (explodeSource.length > 1) {
-            const childCenters = new Map<THREE.Object3D, THREE.Vector3>();
-            const modelLocalBox = new THREE.Box3();
-            explodeSource.forEach(child => {
-              const mesh = child as THREE.Mesh;
-              if (!mesh.isMesh || !mesh.geometry) return;
-              mesh.geometry.computeBoundingBox();
-              const gb = mesh.geometry.boundingBox;
-              if (!gb || gb.isEmpty()) return;
-              const ctr = gb.getCenter(new THREE.Vector3());
-              childCenters.set(child, ctr);
-              modelLocalBox.expandByPoint(ctr);
-            });
+    function onFinalError(err: unknown) {
+      console.error('[ModelViewer] Failed to load', modelUrl, err);
+      const fallbackEl = root.querySelector<HTMLElement>('.viewer-fallback');
+      if (fallbackEl) {
+        loadingEl?.remove();
+        fallbackEl.removeAttribute('aria-hidden');
+      } else if (loadingEl) {
+        loadingEl.textContent = 'Model unavailable';
+        (loadingEl as HTMLElement).style.opacity = '0.4';
+      }
+    }
 
-            if (childCenters.size > 1) {
-              const localCenter = modelLocalBox.getCenter(new THREE.Vector3());
-              const localSize   = modelLocalBox.getSize(new THREE.Vector3());
-              const maxLocalDim = Math.max(localSize.x, localSize.y, localSize.z);
-              let partIdx = 0;
-              childCenters.forEach((ctr, child) => {
-                const toChild = ctr.clone().sub(localCenter);
-                const spread  = toChild.length();
-                let dir: THREE.Vector3;
-                if (spread > 0.001) {
-                  dir = toChild.divideScalar(spread);
-                } else {
-                  const a = (partIdx / childCenters.size) * Math.PI * 2;
-                  dir = new THREE.Vector3(Math.cos(a), 0.4, Math.sin(a)).normalize();
-                }
-                explodeParts.push({ object: child, origin: child.position.clone(), dir, dist: Math.max(spread * 2.5, maxLocalDim * 0.15), startAt: 0.05, endAt: 0.75 });
-                partIdx++;
-              });
-            }
-
-            if (showExplodeBtn && explodeParts.length > 0) {
-              const btn = root.querySelector<HTMLButtonElement>('.viewer-explode-btn')!;
-              const btnLabel = btn.querySelector('span')!;
-              btn.removeAttribute('hidden');
-              btn.addEventListener('click', () => {
-                const assembling = explodeTarget > 0.5;
-                if (assembling) {
-                  tweenExplode(0, 1800);
-                  btnLabel.textContent = 'Explode';
-                } else {
-                  tweenExplode(1, 2500);
-                  btnLabel.textContent = 'Assemble';
-                }
-              });
-            }
-          }
-
-          // Dismiss loading overlay with animation
-          if (loadingEl) {
-            loadingEl.classList.add('is-loaded');
-            loadingEl.addEventListener('transitionend', () => loadingEl.remove(), { once: true });
-          }
-        },
-        (event: ProgressEvent) => {
-          if (event.lengthComputable && loadingEl) {
-            const bar = loadingEl.querySelector<HTMLElement>('.loading-bar-fill');
-            if (bar) bar.style.width = `${(event.loaded / event.total) * 100}%`;
-          }
-        },
+    function tryLoad(useJsDecoder: boolean) {
+      const draco = new DRACOLoader();
+      draco.setDecoderPath('/draco/');
+      if (useJsDecoder) draco.setDecoderConfig({ type: 'js' });
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.setDRACOLoader(draco);
+      gltfLoader.load(
+        modelUrl,
+        onModelLoaded,
+        onProgress,
         (err: unknown) => {
-          console.error('[ModelViewer] Failed to load', modelUrl, err);
-          const fallbackEl = root.querySelector<HTMLElement>('.viewer-fallback');
-          if (fallbackEl) {
-            loadingEl?.remove();
-            fallbackEl.removeAttribute('aria-hidden');
-          } else if (loadingEl) {
-            loadingEl.textContent = 'Model unavailable';
-            (loadingEl as HTMLElement).style.opacity = '0.4';
+          if (!useJsDecoder) {
+            console.warn('[ModelViewer] WASM decoder failed, retrying with JS decoder', err);
+            tryLoad(true);
+          } else {
+            onFinalError(err);
           }
         }
       );
-    });
+    }
+
+    scheduleLoad(() => tryLoad(false));
   } else {
     if (loadingEl) loadingEl.remove();
     explodeParts.push(...buildPlaceholder(scene));
