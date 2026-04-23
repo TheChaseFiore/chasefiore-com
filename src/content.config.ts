@@ -10,6 +10,8 @@ const portfolioCollection = defineCollection({
     publishDate: z.date().optional(),
     coverImage: image().optional(),
     model: z.string().optional(), // path to GLB in public/, e.g. "/models/my-project.glb"
+    cameraPos: z.tuple([z.number(), z.number(), z.number()]).optional(),
+    cameraTgt: z.tuple([z.number(), z.number(), z.number()]).optional(),
     tags: z.array(z.string()).optional(),
   }),
 });

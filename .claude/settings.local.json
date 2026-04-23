@@ -16,7 +16,11 @@
       "Bash(curl -s \"https://chasefiore-com.pages.dev/\")",
       "WebFetch(domain:developers.cloudflare.com)",
       "Bash(npm run *)",
-      "Bash(xargs head *)"
+      "Bash(xargs head *)",
+      "WebSearch",
+      "WebFetch(domain:chasefiore.com)",
+      "WebFetch(domain:web.archive.org)",
+      "WebFetch(domain:www.chasefiore.com)"
     ]
   }
 }

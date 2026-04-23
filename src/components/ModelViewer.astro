@@ -7,9 +7,11 @@ interface Props {
   sectionCuts?: boolean;
   mobileDrag?: boolean;
   fallbackImage?: string;
+  cameraPos?: [number, number, number];
+  cameraTgt?: [number, number, number];
 }
 
-const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false, fallbackImage = '' } = Astro.props;
+const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false, fallbackImage = '', cameraPos, cameraTgt } = Astro.props;
 ---
 
 <div
@@ -21,6 +23,8 @@ const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = fals
   data-section-cuts={String(sectionCuts)}
   data-mobile-drag={String(mobileDrag)}
   data-fallback-image={fallbackImage}
+  data-camera-pos={cameraPos ? JSON.stringify(cameraPos) : ''}
+  data-camera-tgt={cameraTgt ? JSON.stringify(cameraTgt) : ''}
 >
   <canvas class="viewer-canvas"></canvas>
 
@@ -125,6 +129,8 @@ function setupViewer(root: HTMLElement): CleanupFn {
   const showExplodeBtn  = root.dataset.explodeButton === 'true';
   const showSectionCuts = root.dataset.sectionCuts === 'true';
   const mobileDrag      = root.dataset.mobileDrag === 'true';
+  const cameraPos: [number,number,number] = root.dataset.cameraPos ? JSON.parse(root.dataset.cameraPos) : [4.5, 5.5, 7];
+  const cameraTgt: [number,number,number] = root.dataset.cameraTgt ? JSON.parse(root.dataset.cameraTgt) : [0, 3.5, 0];
 
   // ── Scene ──────────────────────────────────────────────────────
   const scene = new THREE.Scene();
@@ -133,8 +139,8 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   // ── Camera ──────────────────────────────────────────────────────
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 200);
-  camera.position.set(4.5, 5.5, 7);
-  camera.lookAt(0, 3.5, 0);
+  camera.position.set(...cameraPos);
+  camera.lookAt(...cameraTgt);
 
   // ── Renderer ────────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -193,7 +199,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
   controls.maxPolarAngle = Math.PI / 2 + 0.05;
   controls.minDistance = 3;
   controls.maxDistance = 30;
-  controls.target.set(0, 3.5, 0);
+  controls.target.set(...cameraTgt);
 
   // ── Scroll / touch passthrough ──────────────────────────────────
   canvas.style.touchAction = mobileDrag ? 'none' : 'pan-y';
