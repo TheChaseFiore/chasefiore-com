@@ -20,7 +20,15 @@
       "WebSearch",
       "WebFetch(domain:chasefiore.com)",
       "WebFetch(domain:web.archive.org)",
-      "WebFetch(domain:www.chasefiore.com)"
+      "WebFetch(domain:www.chasefiore.com)",
+      "Read(//home/chase/.local/**)",
+      "Read(//home/chase/**)",
+      "Read(//opt/**)",
+      "Read(//snap/bin/**)",
+      "Bash(bash -l -c \"which node && node --version\")",
+      "Bash(rpm -qa)",
+      "Read(//usr/lib/**)",
+      "Read(//usr/share/doc/**)"
     ]
   }
 }

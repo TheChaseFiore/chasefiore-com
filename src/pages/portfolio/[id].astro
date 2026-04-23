@@ -70,6 +70,17 @@ const galleryImages = Object.entries(allImages)
         )}
       </header>
 
+      {project.data.youtubeId && (
+        <div class="video-embed">
+          <iframe
+            src={`https://www.youtube.com/embed/${project.data.youtubeId}${project.data.youtubeStart ? `?start=${project.data.youtubeStart}` : ''}`}
+            title={project.data.title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+          ></iframe>
+        </div>
+      )}
+
       <div class="prose">
         <Content />
       </div>
@@ -276,6 +287,24 @@ const galleryImages = Object.entries(allImages)
   .prose :global(code) { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.875em; background: rgba(255,255,255,0.06); padding: 0.15em 0.4em; border-radius: 3px; }
   .prose :global(blockquote) { border-left: 2px solid var(--accent); padding-left: 1.25rem; margin: 1.5rem 0; color: rgba(232,232,232,0.6); font-style: italic; }
   .prose :global(hr) { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+
+  /* ── Video embed ── */
+  .video-embed {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: 4px;
+    margin-bottom: 2.5rem;
+  }
+
+  .video-embed iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
 
   /* ── Gallery ── */
   .gallery {

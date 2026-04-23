@@ -9,9 +9,10 @@ interface Props {
   fallbackImage?: string;
   cameraPos?: [number, number, number];
   cameraTgt?: [number, number, number];
+  cycleModels?: Array<{url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number]}>;
 }
 
-const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false, fallbackImage = '', cameraPos, cameraTgt } = Astro.props;
+const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false, fallbackImage = '', cameraPos, cameraTgt, cycleModels } = Astro.props;
 ---
 
 <div
@@ -25,6 +26,7 @@ const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = fals
   data-fallback-image={fallbackImage}
   data-camera-pos={cameraPos ? JSON.stringify(cameraPos) : ''}
   data-camera-tgt={cameraTgt ? JSON.stringify(cameraTgt) : ''}
+  data-cycle-models={cycleModels ? JSON.stringify(cycleModels) : ''}
 >
   <canvas class="viewer-canvas"></canvas>
 
@@ -81,6 +83,8 @@ const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = fals
     <span>Drag to rotate</span>
   </div>
 
+  <div class="viewer-transition-overlay"></div>
+
   <div class="viewer-debug" hidden>
     <div class="vd-row"><span class="vd-label">pos</span><span class="vd-val" data-key="px"></span><span class="vd-val" data-key="py"></span><span class="vd-val" data-key="pz"></span></div>
     <div class="vd-row"><span class="vd-label">tgt</span><span class="vd-val" data-key="tx"></span><span class="vd-val" data-key="ty"></span><span class="vd-val" data-key="tz"></span></div>
@@ -131,6 +135,13 @@ function setupViewer(root: HTMLElement): CleanupFn {
   const mobileDrag      = root.dataset.mobileDrag === 'true';
   const cameraPos: [number,number,number] = root.dataset.cameraPos ? JSON.parse(root.dataset.cameraPos) : [4.5, 5.5, 7];
   const cameraTgt: [number,number,number] = root.dataset.cameraTgt ? JSON.parse(root.dataset.cameraTgt) : [0, 3.5, 0];
+
+  type CycleEntry = {url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number]};
+  const cycleList: CycleEntry[] = root.dataset.cycleModels ? JSON.parse(root.dataset.cycleModels) : [];
+  const transOverlay = root.querySelector<HTMLElement>('.viewer-transition-overlay');
+  let cycleActive = false;
+  let cycleModelGroup: THREE.Object3D | null = null;
+  let cycleIdx = 0;
 
   // ── Scene ──────────────────────────────────────────────────────
   const scene = new THREE.Scene();
@@ -256,6 +267,89 @@ function setupViewer(root: HTMLElement): CleanupFn {
   };
   root.addEventListener('viewer:explode', onExplode);
 
+  // ── Model cycling ────────────────────────────────────────────────
+  function loadGltfAsync(url: string): Promise<GLTF> {
+    return new Promise((resolve, reject) => {
+      function attempt(useJs: boolean) {
+        const draco = new DRACOLoader();
+        draco.setDecoderPath('/draco/');
+        if (useJs) draco.setDecoderConfig({ type: 'js' });
+        const loader = new GLTFLoader();
+        loader.setDRACOLoader(draco);
+        loader.load(url, resolve, undefined, (err: unknown) => {
+          if (!useJs) attempt(true);
+          else reject(err);
+        });
+      }
+      attempt(false);
+    });
+  }
+
+  function prepareGltf(gltf: GLTF): THREE.Group {
+    const model = gltf.scene;
+    const box = new THREE.Box3().setFromObject(model);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = 8 / maxDim;
+    model.scale.setScalar(scale);
+    model.position.sub(center.multiplyScalar(scale));
+    model.position.y += (size.y * scale) / 2;
+    model.traverse((child: THREE.Object3D) => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return model;
+  }
+
+  function doTransition(gltf: GLTF, config: CycleEntry): Promise<void> {
+    return new Promise(resolve => {
+      if (!cycleActive || !transOverlay) { resolve(); return; }
+      transOverlay.classList.add('is-active');
+      setTimeout(() => {
+        if (!cycleActive) { resolve(); return; }
+        if (cycleModelGroup) scene.remove(cycleModelGroup);
+        const newModel = prepareGltf(gltf);
+        scene.add(newModel);
+        cycleModelGroup = newModel;
+        const newPos = config.cameraPos ?? cameraPos;
+        const newTgt = config.cameraTgt ?? cameraTgt;
+        camera.position.set(...newPos);
+        controls.target.set(...newTgt);
+        controls.update();
+        transOverlay!.classList.remove('is-active');
+        setTimeout(resolve, 900);
+      }, 900);
+    });
+  }
+
+  async function runNextCycle(): Promise<void> {
+    if (!cycleActive) return;
+    const config = cycleList[cycleIdx % cycleList.length];
+    cycleIdx++;
+    try {
+      const [gltf] = await Promise.all([
+        loadGltfAsync(config.url),
+        new Promise<void>(res => setTimeout(res, 6000)),
+      ]);
+      if (!cycleActive) return;
+      await doTransition(gltf, config);
+      runNextCycle();
+    } catch (err) {
+      console.error('[ModelViewer] cycle load failed', err);
+      if (cycleActive) setTimeout(runNextCycle, 2000);
+    }
+  }
+
+  function startCycle(initial: THREE.Group) {
+    if (cycleList.length === 0 || !transOverlay) return;
+    cycleActive = true;
+    cycleModelGroup = initial;
+    runNextCycle();
+  }
+
   // ── Loading overlay ──────────────────────────────────────────────
   const loadingEl = root.querySelector<HTMLElement>('.viewer-loading');
 
@@ -349,6 +443,8 @@ function setupViewer(root: HTMLElement): CleanupFn {
         loadingEl.classList.add('is-loaded');
         loadingEl.addEventListener('transitionend', () => loadingEl.remove(), { once: true });
       }
+
+      startCycle(model);
     }
 
     function onProgress(event: ProgressEvent) {
@@ -503,6 +599,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   // ── Cleanup ─────────────────────────────────────────────────────
   return () => {
+    cycleActive = false;
     cancelAnimationFrame(rafId);
     cancelAnimationFrame(tweenId);
     clipX.constant = clipY.constant = clipZ.constant = CLIP_OFF;
@@ -859,6 +956,21 @@ initAllViewers();
     color: var(--accent, #c8a87a);
     border-color: rgba(200, 168, 122, 0.6);
     background: rgba(12, 12, 12, 0.8);
+  }
+
+  /* ── Model cycle transition overlay ── */
+  .viewer-transition-overlay {
+    position: absolute;
+    inset: 0;
+    background: #0c0c0c;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.9s ease;
+    z-index: 10;
+  }
+
+  .viewer-transition-overlay.is-active {
+    opacity: 1;
   }
 
   /* ── Camera debug overlay (toggle with D key) ── */

@@ -12,7 +12,19 @@ import ModelViewer from '../components/ModelViewer.astro';
   -->
   <div class="hero-pin">
     <section class="hero">
-      <ModelViewer modelUrl="/models/SSE-draco.glb" height="100%" autoRotate={true} cameraPos={[-1.88, 1.31, -3.15]} cameraTgt={[-0.49, 0.12, 0.08]}>
+      <ModelViewer
+        modelUrl="/models/SSE-draco.glb"
+        height="100%"
+        autoRotate={true}
+        cameraPos={[-1.88, 1.31, -3.15]}
+        cameraTgt={[-0.49, 0.12, 0.08]}
+        cycleModels={[
+          {url: '/models/Charlie_Brown-draco.glb', cameraPos: [4.58, 2.40, 5.21], cameraTgt: [1.25, 0.84, 0.31]},
+          {url: '/models/Streetcar-draco.glb', cameraPos: [-2.94, 0.42, 1.03], cameraTgt: [0.56, 0.56, 0.67]},
+          {url: '/models/Coffee_Shop-draco.glb', cameraPos: [4.5, 5.5, 7], cameraTgt: [0, 3.5, 0]},
+          {url: '/models/SSE-draco.glb', cameraPos: [-1.88, 1.31, -3.15], cameraTgt: [-0.49, 0.12, 0.08]},
+        ]}
+      >
         <div class="hero-overlay">
           <div class="hero-text">
             <svg class="hero-name-svg" viewBox="0 0 600 108" xmlns="http://www.w3.org/2000/svg" aria-label="Chase Fiore" role="img">
@@ -30,12 +42,32 @@ import ModelViewer from '../components/ModelViewer.astro';
           </div>
         </div>
       </ModelViewer>
+
+      <div class="hero-name-mobile" aria-hidden="true">
+        <svg class="hero-name-svg" viewBox="0 0 600 108" xmlns="http://www.w3.org/2000/svg">
+          <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
+          <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
+          <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
+          <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
+          <text class="name-copy" x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3">Chase Fiore</text>
+        </svg>
+        <p>Scenic &amp; Technical Design</p>
+      </div>
     </section>
   </div>
 </Layout>
 
 
 <style>
+  /* ── Hero layout ── */
+  .hero-pin {
+    height: calc(100dvh - var(--nav-height));
+  }
+
+  .hero {
+    height: 100%;
+  }
+
   /* ── Hero overlay ── */
   .hero-overlay {
     position: absolute;
@@ -113,7 +145,42 @@ import ModelViewer from '../components/ModelViewer.astro';
     50%       { transform: translateY(4px); }
   }
 
-  @media (max-width: 500px) {
+  /* ── Mobile name (below model) ── */
+  .hero-name-mobile {
+    display: none;
+  }
+
+  @media (max-width: 600px) {
+    .hero {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hero .viewer-root {
+      flex: 1;
+      min-height: 0;
+      height: auto !important;
+    }
+
+    .hero-text {
+      display: none;
+    }
+
+    .hero-name-mobile {
+      display: block;
+      flex-shrink: 0;
+      padding: 1rem 1.75rem 1.25rem;
+      background: var(--bg);
+    }
+
+    .hero-name-mobile p {
+      font-size: clamp(0.75rem, 3.5vw, 0.9rem);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-top: 0.4rem;
+    }
+
     .hero-overlay { padding: 1.75rem; }
   }
 </style>

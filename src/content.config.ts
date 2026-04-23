@@ -13,6 +13,8 @@ const portfolioCollection = defineCollection({
     cameraPos: z.tuple([z.number(), z.number(), z.number()]).optional(),
     cameraTgt: z.tuple([z.number(), z.number(), z.number()]).optional(),
     tags: z.array(z.string()).optional(),
+    youtubeId: z.string().optional(),
+    youtubeStart: z.number().optional(),
   }),
 });
 
