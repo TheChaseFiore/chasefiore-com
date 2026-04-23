@@ -76,6 +76,12 @@ const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = fals
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a7 7 0 0 1 7 7v1l2 1-2 1v3l-7 4-7-4v-3L3 10l2-1V9a7 7 0 0 1 7-7z"/><path d="M12 2v18"/></svg>
     <span>Drag to rotate</span>
   </div>
+
+  <div class="viewer-debug" hidden>
+    <div class="vd-row"><span class="vd-label">pos</span><span class="vd-val" data-key="px"></span><span class="vd-val" data-key="py"></span><span class="vd-val" data-key="pz"></span></div>
+    <div class="vd-row"><span class="vd-label">tgt</span><span class="vd-val" data-key="tx"></span><span class="vd-val" data-key="ty"></span><span class="vd-val" data-key="tz"></span></div>
+    <div class="vd-row"><span class="vd-label">az</span><span class="vd-val vd-wide" data-key="az"></span><span class="vd-label">pol</span><span class="vd-val vd-wide" data-key="pol"></span></div>
+  </div>
 </div>
 
 <script>
@@ -251,7 +257,6 @@ function setupViewer(root: HTMLElement): CleanupFn {
   if (modelUrl) {
     const dracoLoader = new DRACOLoader();
     dracoLoader.setDecoderPath('/draco/');
-    dracoLoader.preload();
     const loader = new GLTFLoader();
     loader.setDRACOLoader(dracoLoader);
 
@@ -429,6 +434,24 @@ function setupViewer(root: HTMLElement): CleanupFn {
   const ro = new ResizeObserver(resize);
   ro.observe(root);
 
+  // ── Debug overlay ────────────────────────────────────────────────
+  const debugEl = root.querySelector<HTMLElement>('.viewer-debug')!;
+  const debugVals = new Map<string, HTMLElement>();
+  debugEl.querySelectorAll<HTMLElement>('[data-key]').forEach(el => debugVals.set(el.dataset.key!, el));
+
+  let debugVisible = false;
+  let debugFrame = 0;
+  const R2D = 180 / Math.PI;
+  function f(n: number) { return n.toFixed(2); }
+
+  const onKeyDebug = (e: KeyboardEvent) => {
+    if (e.key !== 'd' && e.key !== 'D') return;
+    if (document.activeElement instanceof HTMLInputElement) return;
+    debugVisible = !debugVisible;
+    debugEl.toggleAttribute('hidden', !debugVisible);
+  };
+  window.addEventListener('keydown', onKeyDebug);
+
   // ── Loop ────────────────────────────────────────────────────────
   let rafId = 0;
   function tick() {
@@ -444,6 +467,19 @@ function setupViewer(root: HTMLElement): CleanupFn {
     }
 
     renderer.render(scene, camera);
+
+    if (debugVisible && ++debugFrame % 6 === 0) {
+      const p = camera.position;
+      const t = controls.target;
+      debugVals.get('px')!.textContent = f(p.x);
+      debugVals.get('py')!.textContent = f(p.y);
+      debugVals.get('pz')!.textContent = f(p.z);
+      debugVals.get('tx')!.textContent = f(t.x);
+      debugVals.get('ty')!.textContent = f(t.y);
+      debugVals.get('tz')!.textContent = f(t.z);
+      debugVals.get('az')!.textContent  = f(controls.getAzimuthalAngle() * R2D) + '°';
+      debugVals.get('pol')!.textContent = f(controls.getPolarAngle() * R2D) + '°';
+    }
   }
   tick();
 
@@ -457,6 +493,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
     renderer.dispose();
     canvas.removeEventListener('pointerdown', onPointerDown);
     window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('keydown', onKeyDebug);
     root.removeEventListener('viewer:explode', onExplode);
     clearTimeout(interactTimer);
     for (const p of explodeParts) p.object.position.copy(p.origin);
@@ -804,5 +841,47 @@ initAllViewers();
     color: var(--accent, #c8a87a);
     border-color: rgba(200, 168, 122, 0.6);
     background: rgba(12, 12, 12, 0.8);
+  }
+
+  /* ── Camera debug overlay (toggle with D key) ── */
+  .viewer-debug {
+    position: absolute;
+    top: 1rem;
+    left: 1.25rem;
+    font-family: ui-monospace, 'Cascadia Code', 'Fira Mono', monospace;
+    font-size: 0.65rem;
+    line-height: 1.6;
+    color: rgba(200, 168, 122, 0.85);
+    background: rgba(12, 12, 12, 0.7);
+    border: 1px solid rgba(200, 168, 122, 0.2);
+    border-radius: 3px;
+    padding: 0.4rem 0.65rem;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .viewer-debug[hidden] { display: none; }
+
+  .vd-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+  }
+
+  .vd-label {
+    color: rgba(200, 168, 122, 0.45);
+    min-width: 1.8rem;
+  }
+
+  .vd-val {
+    min-width: 4.2rem;
+    text-align: right;
+  }
+
+  .vd-val.vd-wide {
+    min-width: 5rem;
   }
 </style>
