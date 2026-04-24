@@ -11,9 +11,10 @@ interface Props {
   cameraTgt?: [number, number, number];
   cycleModels?: Array<{url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number]}>;
   initialCutZ?: number;
+  navArrows?: boolean;
 }
 
-const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false, fallbackImage = '', cameraPos, cameraTgt, cycleModels, initialCutZ } = Astro.props;
+const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false, fallbackImage = '', cameraPos, cameraTgt, cycleModels, initialCutZ, navArrows = false } = Astro.props;
 ---
 
 <div
@@ -85,6 +86,15 @@ const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = fals
     <span>Drag to rotate</span>
   </div>
 
+  {navArrows && (
+    <button class="viewer-nav-btn viewer-nav-prev" aria-label="Previous model">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <button class="viewer-nav-btn viewer-nav-next" aria-label="Next model">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  )}
+
   <div class="viewer-transition-overlay"></div>
 
   <div class="viewer-debug" hidden>
@@ -147,6 +157,10 @@ function setupViewer(root: HTMLElement): CleanupFn {
   let cycleExplodeParts: ExplodePart[] = [];
   let cycleExplodeProgress = 0;
   let cycleExplodeTweenId = 0;
+  let currentModelIdx = cycleList.length - 1; // treats initial model as last in cycleList
+  let skipWaitFn: (() => void) | null = null;
+  let manualNavDir = 0; // -1 = prev, 0 = auto/next, 1 = next
+  let cycleTransitionBusy = false;
 
   // ── Scene ──────────────────────────────────────────────────────
   const scene = new THREE.Scene();
@@ -176,9 +190,15 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   const cutBounds = { x: [-10, 10] as [number,number], y: [0, 8] as [number,number], z: [-10, 10] as [number,number] };
 
+  // Camera must be in the scene for camera-parented lights to work
+  scene.add(camera);
+
   // ── Lights ──────────────────────────────────────────────────────
+  // Ambient stays in world space (direction-independent)
   scene.add(new THREE.AmbientLight(0x120d08, 1.2));
 
+  // Directional and point lights are parented to the camera so they
+  // stay fixed relative to the viewpoint as the model auto-rotates.
   const keyLight = new THREE.DirectionalLight(0xfff0d8, 2.5);
   keyLight.position.set(5, 14, 10);
   keyLight.castShadow = true;
@@ -189,21 +209,21 @@ function setupViewer(root: HTMLElement): CleanupFn {
   keyLight.shadow.camera.right = 15;
   keyLight.shadow.camera.top = 15;
   keyLight.shadow.camera.bottom = -8;
-  scene.add(keyLight);
+  camera.add(keyLight);
 
   const fillLight = new THREE.DirectionalLight(0x1a2d50, 0.5);
   fillLight.position.set(-10, 4, 5);
-  scene.add(fillLight);
+  camera.add(fillLight);
 
   const rimLight = new THREE.DirectionalLight(0xc8a87a, 0.9);
   rimLight.position.set(-2, 7, -14);
-  scene.add(rimLight);
+  camera.add(rimLight);
 
   const uplightPositions = [[-4.5, 0.5, 0], [0, 0.5, 1], [4.5, 0.5, 0]] as const;
   uplightPositions.forEach(([x, y, z]) => {
     const upl = new THREE.PointLight(0xd4a870, 2.8, 10, 1.5);
     upl.position.set(x, y, z);
-    scene.add(upl);
+    camera.add(upl);
   });
 
   // ── Controls ────────────────────────────────────────────────────
@@ -241,6 +261,20 @@ function setupViewer(root: HTMLElement): CleanupFn {
   root.addEventListener('wheel', (e) => {
     if (!userInteracting) e.stopPropagation();
   }, { capture: true });
+
+  // ── Nav arrows ──────────────────────────────────────────────────
+  const prevBtn = root.querySelector<HTMLButtonElement>('.viewer-nav-prev');
+  const nextBtn = root.querySelector<HTMLButtonElement>('.viewer-nav-next');
+  prevBtn?.addEventListener('click', () => {
+    if (cycleTransitionBusy || !skipWaitFn) return;
+    manualNavDir = -1;
+    skipWaitFn();
+  });
+  nextBtn?.addEventListener('click', () => {
+    if (cycleTransitionBusy || !skipWaitFn) return;
+    manualNavDir = 1;
+    skipWaitFn();
+  });
 
   // ── Explode ──────────────────────────────────────────────────────
   const explodeParts: ExplodePart[] = [];
@@ -403,26 +437,63 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   async function runNextCycle(): Promise<void> {
     if (!cycleActive) return;
-    const config = cycleList[cycleIdx % cycleList.length];
-    cycleIdx++;
+    cycleTransitionBusy = false;
+    manualNavDir = 0;
+
+    // Preload the natural next model during the wait window
+    const naturalIdx = cycleIdx % cycleList.length;
+    let preloadGltf: GLTF | null = null;
+    loadGltfAsync(cycleList[naturalIdx].url)
+      .then(g => { preloadGltf = g; })
+      .catch(() => {});
+
+    // Wait 8 s or until an arrow button fires skipWaitFn
+    await new Promise<void>(res => {
+      const t = setTimeout(res, 8000);
+      skipWaitFn = () => { clearTimeout(t); skipWaitFn = null; res(); };
+    });
+    skipWaitFn = null;
+    if (!cycleActive) return;
+
+    // Auto-advance: respect ongoing user interaction — wait until they let go
+    if (manualNavDir === 0 && userInteracting) {
+      await new Promise<void>(res => {
+        const poll = () => (userInteracting ? void setTimeout(poll, 300) : res());
+        setTimeout(poll, 300);
+      });
+      if (!cycleActive) return;
+    }
+
+    // Resolve target model index
+    let targetIdx: number;
+    if (manualNavDir === -1) {
+      targetIdx = ((currentModelIdx - 1) % cycleList.length + cycleList.length) % cycleList.length;
+    } else {
+      targetIdx = naturalIdx;
+    }
+    currentModelIdx = targetIdx;
+    cycleIdx = (targetIdx + 1) % cycleList.length;
+    manualNavDir = 0;
+    cycleTransitionBusy = true;
+
+    const config = cycleList[targetIdx];
     try {
-      const [gltf] = await Promise.all([
-        loadGltfAsync(config.url),
-        new Promise<void>(res => setTimeout(res, 8000)),
-      ]);
+      const gltf = (targetIdx === naturalIdx && preloadGltf)
+        ? preloadGltf
+        : await loadGltfAsync(config.url);
       if (!cycleActive) return;
       await doTransition(gltf, config);
-      runNextCycle();
     } catch (err) {
       console.error('[ModelViewer] cycle load failed', err);
-      if (cycleActive) setTimeout(runNextCycle, 2000);
     }
+    runNextCycle();
   }
 
   function startCycle(initial: THREE.Group) {
     if (cycleList.length === 0 || !transOverlay) return;
     cycleActive = true;
     cycleModelGroup = initial;
+    currentModelIdx = cycleList.length - 1;
     runNextCycle();
   }
 
@@ -489,30 +560,19 @@ function setupViewer(root: HTMLElement): CleanupFn {
         }
       }
 
-      // Cycle: start model in fully exploded state; assemble after loading overlay fades
+      // Build explode parts for use during cycle transitions (model starts assembled)
       if (cycleList.length > 0) {
         cycleExplodeParts = buildExplodeParts(model);
-        if (cycleExplodeParts.length > 0) {
-          cycleExplodeProgress = 1;
-          for (const p of cycleExplodeParts) {
-            p.object.position.copy(p.origin).addScaledVector(p.dir, p.dist);
-          }
-        }
       }
 
       if (loadingEl) {
         loadingEl.classList.add('is-loaded');
-        // Assembly starts concurrent with loading overlay fade — model assembles as it comes into view
-        if (cycleList.length > 0 && cycleExplodeParts.length > 0) tweenCycleExplode(1, 0, 2000);
         loadingEl.addEventListener('transitionend', () => {
           loadingEl.remove();
           if (cycleList.length > 0) startCycle(model);
         }, { once: true });
       } else {
-        if (cycleList.length > 0) {
-          if (cycleExplodeParts.length > 0) tweenCycleExplode(1, 0, 2000);
-          startCycle(model);
-        }
+        if (cycleList.length > 0) startCycle(model);
       }
     }
 
@@ -1092,5 +1152,34 @@ initAllViewers();
 
   .vd-val.vd-wide {
     min-width: 5rem;
+  }
+
+  /* ── Model nav arrows ── */
+  .viewer-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(12, 12, 12, 0.55);
+    border: 1px solid rgba(200, 168, 122, 0.25);
+    border-radius: 2px;
+    color: rgba(200, 168, 122, 0.6);
+    cursor: pointer;
+    z-index: 12;
+    transition: color 0.2s, border-color 0.2s, background 0.2s, opacity 0.2s;
+    backdrop-filter: blur(4px);
+  }
+
+  .viewer-nav-prev { left: 1.25rem; }
+  .viewer-nav-next { right: 1.25rem; }
+
+  .viewer-nav-btn:hover {
+    color: var(--accent, #c8a87a);
+    border-color: rgba(200, 168, 122, 0.5);
+    background: rgba(12, 12, 12, 0.8);
   }
 </style>

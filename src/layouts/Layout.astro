@@ -1,12 +1,13 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import { SITE_NAME, TAGLINE } from '../config';
 
 interface Props {
   title: string;
   description?: string;
 }
 
-const { title, description = 'Scenic & Technical Design by Chase Fiore' } = Astro.props;
+const { title, description = `${TAGLINE} by ${SITE_NAME}` } = Astro.props;
 const path = Astro.url.pathname;
 ---
 
@@ -27,6 +28,7 @@ const path = Astro.url.pathname;
       <a href="/" class="nav-logo" transition:name="site-logo">Chase Fiore</a>
       <ul>
         <li><a href="/portfolio/" class:list={{ active: path === '/portfolio/' || path.startsWith('/portfolio/') }}>Portfolio</a></li>
+        <li><a href="/projects" class:list={{ active: path === '/projects' }}>Projects</a></li>
         <li><a href="/resume" class:list={{ active: path === '/resume' }}>Resume</a></li>
         <li><a href="https://crashandfred.com" target="_blank" rel="noopener noreferrer">Book</a></li>
         <li><a href="/contact" class:list={{ active: path === '/contact' }}>Contact</a></li>
