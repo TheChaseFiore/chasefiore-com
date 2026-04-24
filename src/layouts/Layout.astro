@@ -28,7 +28,7 @@ const path = Astro.url.pathname;
       <a href="/" class="nav-logo" transition:name="site-logo">Chase Fiore</a>
       <ul>
         <li><a href="/portfolio/" class:list={{ active: path === '/portfolio/' || path.startsWith('/portfolio/') }}>Portfolio</a></li>
-        <li><a href="/projects" class:list={{ active: path === '/projects' }}>Projects</a></li>
+        <li><a href="/projects/" class:list={{ active: path === '/projects/' || path.startsWith('/projects/') }}>Projects</a></li>
         <li><a href="/resume" class:list={{ active: path === '/resume' }}>Resume</a></li>
         <li><a href="https://crashandfred.com" target="_blank" rel="noopener noreferrer">Book</a></li>
         <li><a href="/contact" class:list={{ active: path === '/contact' }}>Contact</a></li>

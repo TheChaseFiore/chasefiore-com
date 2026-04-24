@@ -12,9 +12,10 @@ interface Props {
   cycleModels?: Array<{url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number]}>;
   initialCutZ?: number;
   navArrows?: boolean;
+  mouseTilt?: boolean;
 }
 
-const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false, fallbackImage = '', cameraPos, cameraTgt, cycleModels, initialCutZ, navArrows = false } = Astro.props;
+const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = false, sectionCuts = false, mobileDrag = false, fallbackImage = '', cameraPos, cameraTgt, cycleModels, initialCutZ, navArrows = false, mouseTilt = false } = Astro.props;
 ---
 
 <div
@@ -30,6 +31,7 @@ const { modelUrl = '', height = '500px', autoRotate = true, explodeButton = fals
   data-camera-tgt={cameraTgt ? JSON.stringify(cameraTgt) : ''}
   data-cycle-models={cycleModels ? JSON.stringify(cycleModels) : ''}
   data-initial-cut-z={initialCutZ !== undefined ? String(initialCutZ) : ''}
+  data-mouse-tilt={String(mouseTilt)}
 >
   <canvas class="viewer-canvas"></canvas>
 
@@ -161,6 +163,9 @@ function setupViewer(root: HTMLElement): CleanupFn {
   let skipWaitFn: (() => void) | null = null;
   let manualNavDir = 0; // -1 = prev, 0 = auto/next, 1 = next
   let cycleTransitionBusy = false;
+  let activeCutAxis: 'x' | 'y' | 'z' | null = null; // shared so onModelLoaded can set initial cut
+
+  const mouseTiltEnabled = root.dataset.mouseTilt === 'true';
 
   // ── Scene ──────────────────────────────────────────────────────
   const scene = new THREE.Scene();
@@ -226,6 +231,10 @@ function setupViewer(root: HTMLElement): CleanupFn {
     camera.add(upl);
   });
 
+  // ── Model container (supports mouse-tilt rotation) ───────────────
+  const modelContainer = new THREE.Group();
+  scene.add(modelContainer);
+
   // ── Controls ────────────────────────────────────────────────────
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -275,6 +284,66 @@ function setupViewer(root: HTMLElement): CleanupFn {
     manualNavDir = 1;
     skipWaitFn();
   });
+
+  // ── Mouse tilt / device orientation ────────────────────────────
+  let tiltX = 0, tiltY = 0, tiltTgtX = 0, tiltTgtY = 0, hasTiltInput = false;
+  const tiltCleanups: Array<() => void> = [];
+
+  if (mouseTiltEnabled) {
+    const isMobile = window.matchMedia('(hover: none)').matches;
+
+    if (!isMobile) {
+      const onMove = (e: MouseEvent) => {
+        if (userInteracting) return;
+        const rect = canvas.getBoundingClientRect();
+        tiltTgtY =  ((e.clientX - rect.left) / rect.width  - 0.5) * 0.45;
+        tiltTgtX = -((e.clientY - rect.top)  / rect.height - 0.5) * 0.2;
+        hasTiltInput = true;
+      };
+      const onLeave = () => { hasTiltInput = false; };
+      canvas.addEventListener('mousemove', onMove);
+      canvas.addEventListener('mouseleave', onLeave);
+      tiltCleanups.push(
+        () => canvas.removeEventListener('mousemove', onMove),
+        () => canvas.removeEventListener('mouseleave', onLeave),
+      );
+    } else {
+      // Mobile: device orientation drives the tilt
+      const handleOrientation = (e: DeviceOrientationEvent) => {
+        if (userInteracting) return;
+        const gamma = e.gamma ?? 0; // left-right tilt, -90 to 90
+        const beta  = e.beta  ?? 45; // front-back tilt, -180 to 180
+        tiltTgtY =  (gamma / 90) * 0.35;
+        tiltTgtX = -((beta - 45) / 90) * 0.18;
+        hasTiltInput = true;
+      };
+
+      const startOrientation = () => {
+        if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+          (DeviceOrientationEvent as any).requestPermission()
+            .then((state: string) => {
+              if (state === 'granted') window.addEventListener('deviceorientation', handleOrientation);
+            })
+            .catch(() => {});
+        } else {
+          window.addEventListener('deviceorientation', handleOrientation);
+        }
+      };
+
+      // iOS requires a user gesture; trigger on first touch
+      const onFirstTouch = () => {
+        startOrientation();
+        canvas.removeEventListener('pointerdown', onFirstTouch);
+      };
+      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+        canvas.addEventListener('pointerdown', onFirstTouch);
+        tiltCleanups.push(() => canvas.removeEventListener('pointerdown', onFirstTouch));
+      } else {
+        startOrientation();
+      }
+      tiltCleanups.push(() => window.removeEventListener('deviceorientation', handleOrientation));
+    }
+  }
 
   // ── Explode ──────────────────────────────────────────────────────
   const explodeParts: ExplodePart[] = [];
@@ -408,15 +477,12 @@ function setupViewer(root: HTMLElement): CleanupFn {
     await new Promise<void>(res => setTimeout(res, 1000));
     if (!cycleActive) return;
 
-    // Swap model while screen is black
-    if (cycleModelGroup) scene.remove(cycleModelGroup);
+    // Swap model while screen is black — new model starts assembled
+    if (cycleModelGroup) modelContainer.remove(cycleModelGroup);
     const newModel = prepareGltf(gltf);
     cycleExplodeParts = buildExplodeParts(newModel);
-    cycleExplodeProgress = 1;
-    for (const p of cycleExplodeParts) {
-      p.object.position.copy(p.origin).addScaledVector(p.dir, p.dist);
-    }
-    scene.add(newModel);
+    cycleExplodeProgress = 0;
+    modelContainer.add(newModel);
     cycleModelGroup = newModel;
 
     const newPos = config.cameraPos ?? cameraPos;
@@ -425,14 +491,10 @@ function setupViewer(root: HTMLElement): CleanupFn {
     controls.target.set(...newTgt);
     controls.update();
 
-    // Assembly and fade-from-black run simultaneously — model assembles as it comes into view
+    // Fade from black — model appears assembled
     await new Promise<void>(res => requestAnimationFrame(() => res()));
     transOverlay.classList.remove('is-active');
-    if (cycleActive && cycleExplodeParts.length > 0) {
-      await tweenCycleExplode(1, 0, 2000);
-    } else {
-      await new Promise<void>(res => setTimeout(res, 900));
-    }
+    await new Promise<void>(res => setTimeout(res, 900));
   }
 
   async function runNextCycle(): Promise<void> {
@@ -521,7 +583,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
           child.receiveShadow = true;
         }
       });
-      scene.add(model);
+      modelContainer.add(model);
 
       if (showSectionCuts) {
         const wb = new THREE.Box3().setFromObject(model);
@@ -529,14 +591,17 @@ function setupViewer(root: HTMLElement): CleanupFn {
         cutBounds.y = [wb.min.y, wb.max.y];
         cutBounds.z = [wb.min.z, wb.max.z];
 
-        const initialCutZ = root.dataset.initialCutZ ? parseFloat(root.dataset.initialCutZ) : NaN;
-        if (!isNaN(initialCutZ)) {
-          root.querySelector<HTMLButtonElement>('[data-cut-axis="z"]')?.click();
+        const initialCutZVal = root.dataset.initialCutZ ? parseFloat(root.dataset.initialCutZ) : NaN;
+        if (!isNaN(initialCutZVal)) {
+          const t = initialCutZVal / 100;
+          const [mn, mx] = cutBounds.z;
+          clipZ.constant = mn + (mx - mn) * t;
+          activeCutAxis = 'z';
+          root.querySelector('[data-cut-axis="z"]')?.classList.add('active');
+          root.querySelector('[data-cut-axis="z"]')?.setAttribute('aria-pressed', 'true');
           const slider = root.querySelector<HTMLInputElement>('.viewer-cut-slider');
-          if (slider) {
-            slider.value = String(initialCutZ);
-            slider.dispatchEvent(new Event('input'));
-          }
+          if (slider) slider.value = String(initialCutZVal);
+          root.querySelector<HTMLElement>('.viewer-cut-slider-wrap')?.removeAttribute('hidden');
         }
       }
 
@@ -627,26 +692,25 @@ function setupViewer(root: HTMLElement): CleanupFn {
     const cutBtns    = root.querySelectorAll<HTMLButtonElement>('[data-cut-axis]');
     const sliderWrap = root.querySelector<HTMLElement>('.viewer-cut-slider-wrap');
     const slider     = root.querySelector<HTMLInputElement>('.viewer-cut-slider');
-    let activeCut: 'x' | 'y' | 'z' | null = null;
 
     const getPlane = (a: 'x'|'y'|'z') => a === 'x' ? clipX : a === 'y' ? clipY : clipZ;
 
     cutBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const axis = btn.dataset.cutAxis as 'x'|'y'|'z';
-        if (activeCut === axis) {
+        if (activeCutAxis === axis) {
           getPlane(axis).constant = CLIP_OFF;
           btn.classList.remove('active');
           btn.setAttribute('aria-pressed', 'false');
           sliderWrap?.setAttribute('hidden', '');
-          activeCut = null;
+          activeCutAxis = null;
         } else {
-          if (activeCut) {
-            getPlane(activeCut).constant = CLIP_OFF;
-            root.querySelector(`[data-cut-axis="${activeCut}"]`)?.classList.remove('active');
-            root.querySelector(`[data-cut-axis="${activeCut}"]`)?.setAttribute('aria-pressed', 'false');
+          if (activeCutAxis) {
+            getPlane(activeCutAxis).constant = CLIP_OFF;
+            root.querySelector(`[data-cut-axis="${activeCutAxis}"]`)?.classList.remove('active');
+            root.querySelector(`[data-cut-axis="${activeCutAxis}"]`)?.setAttribute('aria-pressed', 'false');
           }
-          activeCut = axis;
+          activeCutAxis = axis;
           btn.classList.add('active');
           btn.setAttribute('aria-pressed', 'true');
           const [mn, mx] = cutBounds[axis];
@@ -658,10 +722,10 @@ function setupViewer(root: HTMLElement): CleanupFn {
     });
 
     slider?.addEventListener('input', () => {
-      if (!activeCut) return;
+      if (!activeCutAxis) return;
       const t = parseFloat(slider!.value) / 100;
-      const [mn, mx] = cutBounds[activeCut];
-      getPlane(activeCut).constant = mn + (mx - mn) * t;
+      const [mn, mx] = cutBounds[activeCutAxis];
+      getPlane(activeCutAxis).constant = mn + (mx - mn) * t;
     });
   }
 
@@ -700,6 +764,15 @@ function setupViewer(root: HTMLElement): CleanupFn {
   function tick() {
     rafId = requestAnimationFrame(tick);
     controls.update();
+
+    if (mouseTiltEnabled) {
+      const tgtX = hasTiltInput ? tiltTgtX : 0;
+      const tgtY = hasTiltInput ? tiltTgtY : 0;
+      tiltX += (tgtX - tiltX) * 0.04;
+      tiltY += (tgtY - tiltY) * 0.04;
+      modelContainer.rotation.x = tiltX;
+      modelContainer.rotation.y = tiltY;
+    }
 
     if (explodeProgress > 0.001 && explodeParts.length > 0) {
       for (const p of explodeParts) {
@@ -751,6 +824,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
     clearTimeout(interactTimer);
     for (const p of explodeParts) p.object.position.copy(p.origin);
     for (const p of cycleExplodeParts) p.object.position.copy(p.origin);
+    tiltCleanups.forEach(fn => fn());
     root.removeAttribute('data-viewer-init');
   };
 }
