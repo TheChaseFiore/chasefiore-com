@@ -14,9 +14,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_ORDER = [
   'disney_live_entertainment',
-  'falcons_creative_group',
-  'scad_themed_entertainment_design',
   'universal_creative',
+  'scad_themed_entertainment_design',
+  'falcons_creative_group',
   'volunteer',
 ];
 
@@ -114,66 +114,100 @@ for (const project of sorted) {
 </Layout>
 
 <script>
-  // ── Category filtering ──────────────────────────────────────────
-  function initCategoryFilter() {
-    const cat   = new URLSearchParams(location.search).get('category');
-    const tabs  = document.querySelectorAll<HTMLButtonElement>('.cat-tab');
-    const items = document.querySelectorAll<HTMLElement>('.portfolio-grid > li');
-
-    tabs.forEach(tab => {
-      tab.classList.toggle('active', (tab.dataset.category ?? '') === (cat ?? ''));
-      tab.setAttribute('aria-selected', String((tab.dataset.category ?? '') === (cat ?? '')));
-    });
-
-    items.forEach(li => {
-      li.style.display = (!cat || li.dataset.category === cat) ? '' : 'none';
-    });
-
-    tabs.forEach(tab => {
-      tab.onclick = () => {
-        const url = new URL(location.href);
-        if (tab.dataset.category) {
-          url.searchParams.set('category', tab.dataset.category);
-        } else {
-          url.searchParams.delete('category');
-        }
-        url.searchParams.delete('tag');
-        history.pushState({}, '', url);
-        initCategoryFilter();
-        initTagFilter();
-      };
+  // ── Shared visibility ───────────────────────────────────────────
+  function applyVisibility() {
+    const params = new URLSearchParams(location.search);
+    const cat = params.get('category');
+    const tag = params.get('tag');
+    document.querySelectorAll<HTMLElement>('.portfolio-grid > li').forEach(li => {
+      const matchesCat = !cat || li.dataset.category === cat;
+      const tags = li.querySelector<HTMLAnchorElement>('.project-card')?.dataset.tags ?? '';
+      const matchesTag = !tag || tags.split('|').includes(tag);
+      li.style.display = (matchesCat && matchesTag) ? '' : 'none';
     });
   }
 
-  // ── Tag filtering ───────────────────────────────────────────────
-  function initTagFilter() {
+  // ── Filter animation ────────────────────────────────────────────
+  async function animateFilter(commit: () => void) {
+    const grid = document.querySelector<HTMLElement>('.portfolio-grid');
+    if (!grid) { commit(); applyVisibility(); return; }
+
+    grid.classList.add('is-filtering');
+    await new Promise<void>(res => setTimeout(res, 180));
+
+    commit();
+    applyVisibility();
+
+    const visible = [...document.querySelectorAll<HTMLElement>('.portfolio-grid > li')]
+      .filter(li => li.style.display !== 'none');
+    visible.forEach((li, i) => {
+      li.classList.remove('card-entering');
+      void li.offsetWidth;
+      li.style.setProperty('--entry-delay', `${Math.min(i * 28, 320)}ms`);
+      li.classList.add('card-entering');
+    });
+
+    grid.classList.remove('is-filtering');
+    setTimeout(() => visible.forEach(li => li.classList.remove('card-entering')), 800);
+  }
+
+  // ── Sync active tab states ──────────────────────────────────────
+  function syncTabs() {
+    const cat = new URLSearchParams(location.search).get('category') ?? '';
+    document.querySelectorAll<HTMLButtonElement>('.cat-tab').forEach(tab => {
+      const match = (tab.dataset.category ?? '') === cat;
+      tab.classList.toggle('active', match);
+      tab.setAttribute('aria-selected', String(match));
+    });
+  }
+
+  // ── Sync tag filter bar ─────────────────────────────────────────
+  function syncTagBar() {
     const tag   = new URLSearchParams(location.search).get('tag');
     const bar   = document.getElementById('tag-filter-bar') as HTMLElement | null;
     const label = document.getElementById('active-tag-name');
-    const items = document.querySelectorAll<HTMLElement>('.portfolio-grid > li');
-
     if (tag) {
-      if (bar)   { bar.removeAttribute('hidden'); }
-      if (label) { label.textContent = tag; }
-      items.forEach(li => {
-        const tags = li.querySelector<HTMLAnchorElement>('.project-card')?.dataset.tags ?? '';
-        const matchesTag = tags.split('|').includes(tag);
-        // Respect category filter too
-        const cat = new URLSearchParams(location.search).get('category');
-        const matchesCat = !cat || li.dataset.category === cat;
-        li.style.display = (matchesTag && matchesCat) ? '' : 'none';
-      });
+      bar?.removeAttribute('hidden');
+      if (label) label.textContent = tag;
     } else {
-      if (bar) { bar.setAttribute('hidden', ''); }
+      bar?.setAttribute('hidden', '');
     }
+  }
 
-    document.getElementById('clear-tag-filter')?.addEventListener('click', () => {
-      const url = new URL(location.href);
-      url.searchParams.delete('tag');
-      history.pushState({}, '', url);
-      initCategoryFilter();
-      initTagFilter();
+  // ── Init (bind events + apply initial state) ────────────────────
+  function init() {
+    syncTabs();
+    syncTagBar();
+    applyVisibility();
+
+    document.querySelectorAll<HTMLButtonElement>('.cat-tab').forEach(tab => {
+      tab.onclick = () => {
+        animateFilter(() => {
+          const url = new URL(location.href);
+          if (tab.dataset.category) {
+            url.searchParams.set('category', tab.dataset.category);
+          } else {
+            url.searchParams.delete('category');
+          }
+          url.searchParams.delete('tag');
+          history.pushState({}, '', url);
+          syncTabs();
+          syncTagBar();
+        });
+      };
     });
+
+    const clearBtn = document.getElementById('clear-tag-filter');
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        animateFilter(() => {
+          const url = new URL(location.href);
+          url.searchParams.delete('tag');
+          history.pushState({}, '', url);
+          syncTagBar();
+        });
+      };
+    }
   }
 
   // ── Card hover preview ──────────────────────────────────────────
@@ -302,23 +336,20 @@ for (const project of sorted) {
   }
 
   document.addEventListener('astro:page-load', () => {
+    init();
     initCardPreview();
-    initCategoryFilter();
-    initTagFilter();
   });
 
-  document.addEventListener('astro:before-swap', () => {
-    destroyCardPreview();
-  });
-
-  initCardPreview();
-  initCategoryFilter();
-  initTagFilter();
+  document.addEventListener('astro:before-swap', destroyCardPreview);
 
   window.addEventListener('popstate', () => {
-    initCategoryFilter();
-    initTagFilter();
+    syncTabs();
+    syncTagBar();
+    applyVisibility();
   });
+
+  init();
+  initCardPreview();
 </script>
 
 <style>
@@ -415,6 +446,22 @@ for (const project of sorted) {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 1.5px;
+    transition: opacity 0.18s ease;
+  }
+
+  .portfolio-grid.is-filtering {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  @keyframes card-lift {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .portfolio-grid > li.card-entering {
+    animation: card-lift 0.32s ease both;
+    animation-delay: var(--entry-delay, 0ms);
   }
 
   /* ── Card ── */

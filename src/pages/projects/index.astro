@@ -2,10 +2,27 @@
 import Layout from '../../layouts/Layout.astro';
 import { getCollection } from 'astro:content';
 import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
 import { SITE_NAME } from '../../config';
 
 const programingEntries = await getCollection('programing');
 const drawingEntries    = await getCollection('drawing');
+
+const photoModules = import.meta.glob<{ default: ImageMetadata }>(
+  '/src/content/personal_projects/photography/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}',
+  { eager: true }
+);
+const previewPhotos = Object.entries(photoModules)
+  .sort(([a], [b]) => a.localeCompare(b))
+  .slice(0, 8)
+  .map(([, mod]) => mod.default);
+
+const trackNames = [
+  "1952 Vincent", "Beauty Remains", "Blue, Red, and Grey",
+  "Coal Miner's Daughter", "Everything", "Good King",
+  "Hearts and Bones", "It Doesn't Matter Anymore", "King of Bohemia",
+  "Nashville", "Parchman Farm",
+];
 
 const sortByDate = (a: { data: { publishDate?: Date } }, b: { data: { publishDate?: Date } }) =>
   (b.data.publishDate?.getTime() ?? 0) - (a.data.publishDate?.getTime() ?? 0);
@@ -70,16 +87,29 @@ const drawingSorted    = drawingEntries.sort(sortByDate);
 
     <section class="category">
       <div class="category-label">Photography</div>
-      <a href="/projects/photography/" class="section-enter">
-        View photos ↗
+      <a href="/projects/photography/" class="photo-preview-link" aria-label="View all photos">
+        <div class="photo-preview-grid">
+          {previewPhotos.map((src, i) => (
+            <div class="preview-thumb">
+              <Image src={src} alt={`Photography preview ${i + 1}`} width={400} format="webp" loading="lazy" />
+            </div>
+          ))}
+        </div>
+        <span class="section-enter">View all photos ↗</span>
       </a>
     </section>
 
     <section class="category">
       <div class="category-label">Audio Mastering</div>
-      <a href="/projects/audio-mastering/" class="section-enter">
-        Listen to recordings ↗
-      </a>
+      <ol class="preview-tracks">
+        {trackNames.map((name, i) => (
+          <li class="preview-track">
+            <span class="preview-num">{String(i + 1).padStart(2, '0')}</span>
+            <span class="preview-name">{name}</span>
+          </li>
+        ))}
+      </ol>
+      <a href="/projects/audio-mastering/" class="section-enter">Listen to recordings ↗</a>
     </section>
   </main>
 </Layout>
@@ -141,6 +171,65 @@ const drawingSorted    = drawingEntries.sort(sortByDate);
     transition: letter-spacing 0.2s;
   }
   .section-enter:hover { letter-spacing: 0.1em; }
+
+  /* ── Photo preview ── */
+  .photo-preview-link {
+    display: block;
+    text-decoration: none;
+  }
+  .photo-preview-link:hover .section-enter { letter-spacing: 0.1em; }
+
+  .photo-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5px;
+    margin-bottom: 0;
+  }
+
+  .preview-thumb {
+    aspect-ratio: 1;
+    overflow: hidden;
+  }
+
+  .preview-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s cubic-bezier(0.25, 0, 0, 1), filter 0.3s;
+    filter: brightness(0.88) saturate(0.9);
+  }
+  .photo-preview-link:hover .preview-thumb img {
+    transform: scale(1.04);
+    filter: brightness(1) saturate(1);
+  }
+
+  /* ── Audio track preview ── */
+  .preview-tracks {
+    list-style: none;
+    border-top: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+
+  .preview-track {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.65rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .preview-num {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 1.6rem;
+  }
+
+  .preview-name {
+    font-size: 0.82rem;
+    color: rgba(232,232,232,0.7);
+  }
 
   .project-grid {
     list-style: none;
@@ -213,9 +302,13 @@ const drawingSorted    = drawingEntries.sort(sortByDate);
     transform: translateY(0);
   }
 
-  @media (max-width: 900px) { .project-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 900px) {
+    .project-grid { grid-template-columns: repeat(3, 1fr); }
+    .photo-preview-grid { grid-template-columns: repeat(4, 1fr); }
+  }
   @media (max-width: 600px) {
     .projects-page { padding: 2rem 1.25rem 4rem; }
     .project-grid { grid-template-columns: repeat(2, 1fr); gap: 1px; }
+    .photo-preview-grid { grid-template-columns: repeat(4, 1fr); gap: 1px; }
   }
 </style>
