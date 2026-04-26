@@ -2,19 +2,25 @@
 import Layout from '../../layouts/Layout.astro';
 import { SITE_NAME } from '../../config';
 
-const audioModules = import.meta.glob('/src/content/personal_projects/audio_mastering/*.wav', {
-  query: '?url',
-  import: 'default',
-  eager: true,
-});
-
-const tracks = Object.entries(audioModules)
-  .sort(([a], [b]) => a.localeCompare(b))
-  .map(([path, url], i) => ({
-    name: path.split('/').pop()!.replace(/\.wav$/i, ''),
-    url: url as string,
-    index: i,
-  }));
+const BASE = 'https://assets.chasefiore.com/audio_mastering/';
+const trackNames = [
+  "1952 Vincent",
+  "Beauty Remains",
+  "Blue, Red, and Grey",
+  "Coal Miner's Daughter",
+  "Everything",
+  "Good King",
+  "Hearts and Bones",
+  "It Doesn't Matter Anymore",
+  "King of Bohemia",
+  "Nashville",
+  "Parchman Farm",
+];
+const tracks = trackNames.map((name, i) => ({
+  name,
+  url: BASE + encodeURIComponent(name) + '.wav',
+  index: i,
+}));
 ---
 
 <Layout

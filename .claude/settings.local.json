@@ -46,7 +46,13 @@
       "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com log --all --full-history --name-status -- \"src/content/personal_projects/drawing/oil_painting/*\")",
       "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com show debd70cbe52f8fec9912da4ebc6a8f83da5a6f5e --name-status)",
       "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com log --all --full-history --name-status -- \"src/content/portfolio/epcot*/*\")",
-      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com log --all --full-history --name-status -- \"src/content/personal_projects/drawing/pencil_and_paper/*\")"
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com log --all --full-history --name-status -- \"src/content/personal_projects/drawing/pencil_and_paper/*\")",
+      "Bash(curl -s \"https://assets.chasefiore.com/audio_mastering/\")",
+      "Bash(curl -sv \"https://assets.chasefiore.com/audio_mastering/\")",
+      "Bash(curl -s --head \"https://assets.chasefiore.com/audio_mastering/Nashville.wav\")",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://assets.chasefiore.com/audio_mastering/Nashville.wav\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --head \"https://assets.chasefiore.com/audio_mastering/Nashville.wav\")"
     ]
   }
 }
