@@ -69,7 +69,13 @@
       "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/stan_the_bird/contents\")",
       "Bash(curl -s -o /home/chase/Documents/VSCode/chasefiore-com/src/content/personal_projects/programing/dynamo_catenary/dynamo_catenary_01.jpg \"https://img.youtube.com/vi/_W5_66S54bY/maxresdefault.jpg\")",
       "Bash(echo \"dynamo thumbnail: $?\")",
-      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/stan_the_bird/contents/Stan_the_Bird_jun01a.ino\")"
+      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/stan_the_bird/contents/Stan_the_Bird_jun01a.ino\")",
+      "Bash(npm audit *)",
+      "Bash(npm list *)",
+      "Bash(npm show *)",
+      "Bash(npm install *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git rm *)"
     ]
   }
 }
