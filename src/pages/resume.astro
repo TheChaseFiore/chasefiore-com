@@ -57,6 +57,10 @@ const universalProjects = [
         Creative, and Falcon's Treehouse using Revit, AutoCAD, Rhino, and Adobe tools. Known for leadership
         in BIM coordination, drawing package development, and creative problem-solving across disciplines.
       </p>
+      <div class="profile-links">
+        <a href="https://www.imdb.com/name/nm6832048/" target="_blank" rel="noopener">IMDb</a>
+        <a href="https://www.discogs.com/release/27145149" target="_blank" rel="noopener">Discogs</a>
+      </div>
     </header>
 
     <div class="resume-body">
@@ -399,6 +403,29 @@ const universalProjects = [
     line-height: 1.75;
     color: rgba(232, 232, 232, 0.7);
     max-width: 72ch;
+  }
+
+  .profile-links {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.25rem;
+  }
+
+  .profile-links a {
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(200, 168, 122, 0.4);
+    padding: 0.2rem 0.6rem;
+    border-radius: 2px;
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .profile-links a:hover {
+    background: rgba(200, 168, 122, 0.1);
+    border-color: var(--accent);
   }
 
   /* ── Sections ── */

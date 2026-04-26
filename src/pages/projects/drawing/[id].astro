@@ -17,7 +17,7 @@ const { entry } = Astro.props;
 const { Content } = await render(entry);
 
 const allImages = import.meta.glob<{ default: ImageMetadata }>(
-  '/src/content/drawing/**/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP,gif,GIF}',
+  '/src/content/personal_projects/drawing/**/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP,gif,GIF}',
   { eager: true }
 );
 const galleryImages = Object.entries(allImages)

@@ -20,7 +20,7 @@ const portfolioCollection = defineCollection({
 });
 
 const lightingDesignCollection = defineCollection({
-  loader: glob({ pattern: "**/*.md", base: "./src/content/lighting-design" }),
+  loader: glob({ pattern: "**/*.md", base: "./src/content/personal_projects/lighting-design" }),
   schema: ({ image }) => z.object({
     title: z.string(),
     description: z.string(),
@@ -31,7 +31,7 @@ const lightingDesignCollection = defineCollection({
 });
 
 const drawingCollection = defineCollection({
-  loader: glob({ pattern: "**/*.md", base: "./src/content/drawing" }),
+  loader: glob({ pattern: "**/*.md", base: "./src/content/personal_projects/drawing" }),
   schema: ({ image }) => z.object({
     title: z.string(),
     description: z.string(),
@@ -41,8 +41,23 @@ const drawingCollection = defineCollection({
   }),
 });
 
+const programingCollection = defineCollection({
+  loader: glob({ pattern: "*/index.md", base: "./src/content/personal_projects/programing" }),
+  schema: ({ image }) => z.object({
+    title: z.string(),
+    description: z.string(),
+    publishDate: z.date().optional(),
+    coverImage: image().optional(),
+    tags: z.array(z.string()).optional(),
+    youtubeId: z.string().optional(),
+    youtubeStart: z.number().optional(),
+    githubRepo: z.string().optional(),
+  }),
+});
+
 export const collections = {
   'portfolio': portfolioCollection,
   'lighting-design': lightingDesignCollection,
   'drawing': drawingCollection,
+  'programing': programingCollection,
 };

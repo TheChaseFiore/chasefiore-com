@@ -4,32 +4,31 @@ import { getCollection } from 'astro:content';
 import { Image } from 'astro:assets';
 import { SITE_NAME } from '../../config';
 
-const lightingEntries = await getCollection('lighting-design');
-const drawingEntries  = await getCollection('drawing');
+const programingEntries = await getCollection('programing');
+const drawingEntries    = await getCollection('drawing');
 
-// Sort both by publishDate descending
 const sortByDate = (a: { data: { publishDate?: Date } }, b: { data: { publishDate?: Date } }) =>
   (b.data.publishDate?.getTime() ?? 0) - (a.data.publishDate?.getTime() ?? 0);
 
-const lightingSorted = lightingEntries.sort(sortByDate);
-const drawingSorted  = drawingEntries.sort(sortByDate);
+const programingSorted = programingEntries.sort(sortByDate);
+const drawingSorted    = drawingEntries.sort(sortByDate);
 ---
 
 <Layout title={`${SITE_NAME} | Projects`}
-        description={`Personal work by ${SITE_NAME} — lighting design, drawing, photography, music, and more.`}>
+        description={`Personal work by ${SITE_NAME} — programming, drawing, photography, audio mastering, and more.`}>
   <main class="projects-page">
     <header class="page-header">
       <h1>Projects</h1>
       <p>Personal work across creative disciplines.</p>
     </header>
 
-    {lightingSorted.length > 0 && (
+    {programingSorted.length > 0 && (
       <section class="category">
-        <div class="category-label">Lighting Design</div>
+        <div class="category-label">Programming</div>
         <ul class="project-grid">
-          {lightingSorted.map(entry => (
+          {programingSorted.map(entry => (
             <li>
-              <a href={`/projects/lighting-design/${entry.id}/`} class="project-card">
+              <a href={`/projects/programing/${entry.id}/`} class="project-card">
                 {entry.data.coverImage ? (
                   <div class="card-image">
                     <Image src={entry.data.coverImage} alt={entry.data.title} width={800} format="webp" />
@@ -69,20 +68,16 @@ const drawingSorted  = drawingEntries.sort(sortByDate);
       </section>
     )}
 
-    <!-- Placeholder sections for content not yet in collections -->
     <section class="category">
       <div class="category-label">Photography</div>
       <p class="coming-soon">Coming soon.</p>
     </section>
 
     <section class="category">
-      <div class="category-label">Music</div>
-      <p class="coming-soon">Coming soon.</p>
-    </section>
-
-    <section class="category">
-      <div class="category-label">Programming</div>
-      <p class="coming-soon">Coming soon.</p>
+      <div class="category-label">Audio Mastering</div>
+      <a href="/projects/audio-mastering/" class="section-enter">
+        Listen to recordings ↗
+      </a>
     </section>
   </main>
 </Layout>
@@ -132,6 +127,18 @@ const drawingSorted  = drawingEntries.sort(sortByDate);
     padding: 2rem 0;
     border-top: 1px solid var(--border);
   }
+
+  .section-enter {
+    display: inline-block;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--border);
+    width: 100%;
+    transition: letter-spacing 0.2s;
+  }
+  .section-enter:hover { letter-spacing: 0.1em; }
 
   .project-grid {
     list-style: none;

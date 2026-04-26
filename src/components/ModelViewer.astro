@@ -158,7 +158,6 @@ function setupViewer(root: HTMLElement): CleanupFn {
   let cycleIdx = 0;
   let cycleExplodeParts: ExplodePart[] = [];
   let cycleExplodeProgress = 0;
-  let cycleExplodeTweenId = 0;
   let currentModelIdx = cycleList.length - 1; // treats initial model as last in cycleList
   let skipWaitFn: (() => void) | null = null;
   let manualNavDir = 0; // -1 = prev, 0 = auto/next, 1 = next
@@ -452,28 +451,11 @@ function setupViewer(root: HTMLElement): CleanupFn {
     return parts;
   }
 
-  function tweenCycleExplode(from: number, to: number, duration: number): Promise<void> {
-    return new Promise(resolve => {
-      cancelAnimationFrame(cycleExplodeTweenId);
-      const startTime = performance.now();
-      function step(now: number) {
-        if (!cycleActive) { resolve(); return; }
-        const t = Math.min((now - startTime) / duration, 1);
-        const e = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
-        cycleExplodeProgress = from + (to - from) * e;
-        if (t < 1) cycleExplodeTweenId = requestAnimationFrame(step);
-        else { cycleExplodeProgress = to; resolve(); }
-      }
-      cycleExplodeTweenId = requestAnimationFrame(step);
-    });
-  }
-
   async function doTransition(gltf: GLTF, config: CycleEntry): Promise<void> {
     if (!cycleActive || !transOverlay) return;
 
-    // Explosion and fade-to-black run simultaneously — never a static exploded state
+    // Fade-to-black during model swap
     transOverlay.classList.add('is-active');
-    if (cycleExplodeParts.length > 0) tweenCycleExplode(0, 1, 1000);
     await new Promise<void>(res => setTimeout(res, 1000));
     if (!cycleActive) return;
 
@@ -812,7 +794,6 @@ function setupViewer(root: HTMLElement): CleanupFn {
     cycleActive = false;
     cancelAnimationFrame(rafId);
     cancelAnimationFrame(tweenId);
-    cancelAnimationFrame(cycleExplodeTweenId);
     clipX.constant = clipY.constant = clipZ.constant = CLIP_OFF;
     ro.disconnect();
     controls.dispose();

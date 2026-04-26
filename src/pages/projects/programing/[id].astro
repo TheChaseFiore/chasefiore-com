@@ -1,0 +1,260 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { getCollection, render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import { SITE_NAME } from '../../../config';
+
+interface Props { entry: CollectionEntry<'programing'>; }
+
+export async function getStaticPaths() {
+  const entries = await getCollection('programing');
+  return entries.map(entry => ({ params: { id: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+
+const allImages = import.meta.glob<{ default: ImageMetadata }>(
+  '/src/content/personal_projects/programing/**/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP,gif,GIF}',
+  { eager: true }
+);
+const galleryImages = Object.entries(allImages)
+  .filter(([path]) => path.includes(`/programing/${entry.id}/`) && !path.endsWith('index.md'))
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([, mod]) => mod.default);
+---
+
+<Layout title={`${entry.data.title} | ${SITE_NAME}`} description={entry.data.description}>
+  <article>
+    {entry.data.coverImage && (
+      <div class="media-wrap cover-wrap">
+        <Image src={entry.data.coverImage} alt={entry.data.title} width={1600} format="webp" />
+      </div>
+    )}
+
+    <div class="content-wrap">
+      <nav class="breadcrumb">
+        <a href="/projects/">← Projects</a>
+        {entry.data.tags?.map((tag: string) => <span class="tag">{tag}</span>)}
+      </nav>
+      <header class="project-header">
+        <h1>{entry.data.title}</h1>
+        {entry.data.description && <p class="description">{entry.data.description}</p>}
+        {entry.data.publishDate && (
+          <time datetime={entry.data.publishDate.toISOString()}>
+            {entry.data.publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+          </time>
+        )}
+        {entry.data.githubRepo && (
+          <a class="github-btn" href={`https://github.com/${entry.data.githubRepo}`} target="_blank" rel="noopener">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            View on GitHub
+          </a>
+        )}
+      </header>
+      <div class="prose"><Content /></div>
+
+      {entry.data.youtubeId && (
+        <div class="video-embed">
+          <iframe
+            src={`https://www.youtube.com/embed/${entry.data.youtubeId}${entry.data.youtubeStart ? `?start=${entry.data.youtubeStart}` : ''}`}
+            title={entry.data.title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+          ></iframe>
+        </div>
+      )}
+    </div>
+
+    {galleryImages.length > 0 && (
+      <div class="gallery" id="gallery">
+        {galleryImages.map((img, i) => (
+          <button class="gallery-item" data-index={i} aria-label={`View image ${i + 1}`}>
+            <Image src={img} alt={entry.data.title} width={1200} format="webp" loading="lazy" />
+          </button>
+        ))}
+      </div>
+    )}
+  </article>
+
+  <div class="lightbox" id="lightbox" aria-modal="true" role="dialog" aria-label="Image viewer">
+    <button class="lb-close" id="lb-close" aria-label="Close">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <button class="lb-arrow lb-prev" id="lb-prev" aria-label="Previous">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="lb-stage"><img class="lb-img" id="lb-img" src="" alt="" /></div>
+    <button class="lb-arrow lb-next" id="lb-next" aria-label="Next">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <div class="lb-counter" id="lb-counter"></div>
+  </div>
+</Layout>
+
+<script>
+  function initLightbox() {
+    const gallery = document.getElementById('gallery');
+    const lightbox = document.getElementById('lightbox') as HTMLElement | null;
+    const lbImg = document.getElementById('lb-img') as HTMLImageElement | null;
+    const lbCounter = document.getElementById('lb-counter');
+    if (!gallery || !lightbox || !lbImg) return;
+
+    const items = Array.from(gallery.querySelectorAll<HTMLButtonElement>('.gallery-item'));
+    const srcs = items.map(el => el.querySelector('img')?.src ?? '');
+    let current = 0;
+
+    function open(idx: number) {
+      current = (idx + srcs.length) % srcs.length;
+      lbImg!.src = srcs[current];
+      if (lbCounter) lbCounter.textContent = `${current + 1} / ${srcs.length}`;
+      lightbox!.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function close() {
+      lightbox!.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    items.forEach((btn, i) => btn.addEventListener('click', () => open(i)));
+    document.getElementById('lb-close')?.addEventListener('click', close);
+    document.getElementById('lb-prev')?.addEventListener('click', () => open(current - 1));
+    document.getElementById('lb-next')?.addEventListener('click', () => open(current + 1));
+    lightbox.addEventListener('click', e => { if (e.target === lightbox) close(); });
+    document.addEventListener('keydown', e => {
+      if (!lightbox.classList.contains('open')) return;
+      if (e.key === 'Escape') close();
+      if (e.key === 'ArrowLeft') open(current - 1);
+      if (e.key === 'ArrowRight') open(current + 1);
+    });
+  }
+  document.addEventListener('astro:page-load', initLightbox);
+  initLightbox();
+
+  function initCodeWindows() {
+    document.querySelectorAll('.prose pre').forEach(pre => {
+      if (pre.querySelector('.code-chrome')) return;
+      const code = pre.querySelector('code');
+      const lang = [...(code?.classList ?? [])].find(c => c.startsWith('language-'))?.slice(9) ?? '';
+      const chrome = document.createElement('div');
+      chrome.className = 'code-chrome';
+      chrome.innerHTML = `<span class="chrome-dots"><i></i><i></i><i></i></span>${lang ? `<span class="chrome-lang">${lang}</span>` : ''}`;
+      const copy = document.createElement('button');
+      copy.className = 'chrome-copy';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', () => {
+        navigator.clipboard.writeText(code?.textContent ?? '');
+        copy.textContent = 'Copied!';
+        setTimeout(() => { copy.textContent = 'Copy'; }, 2000);
+      });
+      chrome.appendChild(copy);
+      pre.insertBefore(chrome, pre.firstChild);
+    });
+  }
+  document.addEventListener('astro:page-load', initCodeWindows);
+  initCodeWindows();
+</script>
+
+<style>
+  article { max-width: var(--max-width); margin: 0 auto; }
+  .media-wrap { width: 100%; max-height: 70vh; overflow: hidden; }
+  .cover-wrap img { width: 100%; height: 100%; object-fit: cover; max-height: 70vh; }
+  .content-wrap { padding: 2.5rem 2rem 2rem; max-width: 780px; }
+  .breadcrumb { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.5rem; font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap; }
+  .breadcrumb a { color: var(--text-muted); transition: color 0.2s; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .tag { font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); border: 1px solid rgba(200,168,122,0.4); padding: 0.15rem 0.5rem; border-radius: 2px; }
+  .project-header h1 { font-size: clamp(1.6rem, 3vw, 2.5rem); font-weight: 300; letter-spacing: -0.02em; margin-bottom: 0.75rem; }
+  .description { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 0.5rem; }
+  time { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+  .github-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(200,168,122,0.4);
+    padding: 0.3rem 0.75rem;
+    border-radius: 2px;
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .github-btn:hover { background: rgba(200,168,122,0.08); border-color: var(--accent); }
+
+  .prose { margin-top: 1.5rem; font-size: 0.95rem; line-height: 1.7; color: var(--text-muted); }
+
+  .prose pre {
+    position: relative;
+    background: #080808;
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 2rem 0;
+    font-size: 0.82rem;
+  }
+  .prose pre code {
+    display: block;
+    padding: 1.25rem 1.5rem 1.5rem;
+    overflow-x: auto;
+    background: none;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, 'Courier New', monospace;
+    line-height: 1.65;
+    tab-size: 2;
+  }
+  .code-chrome {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 1rem;
+    background: #111;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .chrome-dots { display: flex; gap: 5px; }
+  .chrome-dots i { display: block; width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.12); }
+  .chrome-dots i:nth-child(1) { background: #ff5f57; }
+  .chrome-dots i:nth-child(2) { background: #febc2e; }
+  .chrome-dots i:nth-child(3) { background: #28c840; }
+  .chrome-lang {
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-left: 0.25rem;
+  }
+  .chrome-copy {
+    margin-left: auto;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: none;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.4);
+    padding: 0.15rem 0.55rem;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .chrome-copy:hover { color: var(--accent); border-color: rgba(200,168,122,0.4); }
+  .video-embed { position: relative; width: 100%; padding-bottom: 56.25%; margin-top: 2rem; margin-bottom: 2.5rem; }
+  .video-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 2px; padding: 2px; }
+  .gallery-item { display: block; background: none; border: none; padding: 0; cursor: zoom-in; overflow: hidden; aspect-ratio: 4/3; }
+  .gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s cubic-bezier(0.25,0,0,1), filter 0.3s; filter: brightness(0.9); }
+  .gallery-item:hover img { transform: scale(1.04); filter: brightness(1); }
+  .lightbox { display: none; position: fixed; inset: 0; z-index: 200; background: rgba(8,8,8,0.96); align-items: center; justify-content: center; }
+  .lightbox.open { display: flex; }
+  .lb-stage { max-width: 90vw; max-height: 88vh; display: flex; align-items: center; justify-content: center; }
+  .lb-img { max-width: 90vw; max-height: 88vh; object-fit: contain; }
+  .lb-close { position: absolute; top: 1.25rem; right: 1.25rem; background: none; border: none; color: rgba(255,255,255,0.6); cursor: pointer; padding: 0.5rem; transition: color 0.2s; }
+  .lb-close:hover { color: #fff; }
+  .lb-arrow { position: absolute; top: 50%; transform: translateY(-50%); background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 1rem; transition: color 0.2s; }
+  .lb-arrow:hover { color: #fff; }
+  .lb-prev { left: 1rem; }
+  .lb-next { right: 1rem; }
+  .lb-counter { position: absolute; bottom: 1.5rem; left: 50%; transform: translateX(-50%); font-size: 0.7rem; letter-spacing: 0.1em; color: rgba(255,255,255,0.4); }
+</style>
