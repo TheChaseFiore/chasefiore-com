@@ -23,15 +23,16 @@ import { SITE_NAME, TAGLINE } from '../config';
         cameraTgt={[-0.49, 0.12, 0.08]}
         sectionCuts={true}
         cycleModels={[
-          {url: '/models/Streetcar-draco.glb', cameraPos: [-2.94, 0.42, 1.03], cameraTgt: [0.56, 0.56, 0.67], portfolioUrl: '/portfolio/streetcar/'},
-          {url: '/models/Charlie_Brown-draco.glb', cameraPos: [4.58, 2.40, 5.21], cameraTgt: [1.25, 0.84, 0.31], portfolioUrl: '/portfolio/youre-a-good-man-charlie-brown/'},
-          {url: '/models/Coffee_Shop-draco.glb', cameraPos: [-1.59, 1.17, 5.09], cameraTgt: [-2.66, 0.83, 1.52], portfolioUrl: '/portfolio/interior-design/', initialCutZ: 95},
-          {url: '/models/SSE-draco.glb', cameraPos: [-1.88, 1.31, -3.15], cameraTgt: [-0.49, 0.12, 0.08], portfolioUrl: '/portfolio/spaceship-earth-scad/'},
+          {url: '/models/Streetcar-draco.glb', cameraPos: [-2.94, 0.42, 1.03], cameraTgt: [0.56, 0.56, 0.67], portfolioUrl: '/portfolio/streetcar/', name: 'A Streetcar Named Desire'},
+          {url: '/models/Charlie_Brown-draco.glb', cameraPos: [4.58, 2.40, 5.21], cameraTgt: [1.25, 0.84, 0.31], portfolioUrl: '/portfolio/youre-a-good-man-charlie-brown/', name: "You're a Good Man, Charlie Brown"},
+          {url: '/models/Coffee_Shop-draco.glb', cameraPos: [-1.59, 1.17, 5.09], cameraTgt: [-2.66, 0.83, 1.52], portfolioUrl: '/portfolio/interior-design/', initialCutZ: 95, name: 'Interior Design Study'},
+          {url: '/models/SSE-draco.glb', cameraPos: [-1.88, 1.31, -3.15], cameraTgt: [-0.49, 0.12, 0.08], portfolioUrl: '/portfolio/spaceship-earth-scad/', name: 'Spaceship Earth'},
         ]}
       >
         <div class="hero-overlay">
-          <a href="/portfolio/" class="portfolio-cta">
-            Selected Works <span class="cta-arrow">↗</span>
+          <a href="/portfolio/spaceship-earth-scad/" class="portfolio-cta" id="model-cta" aria-label="View project in portfolio">
+            <span class="cta-label">View Project <span class="cta-arrow">↗</span></span>
+            <span class="cta-name" id="cta-model-name">Spaceship Earth</span>
           </a>
           <div class="hero-text">
             <svg class="hero-name-svg" viewBox="0 0 600 108" xmlns="http://www.w3.org/2000/svg" aria-label="Chase Fiore" role="img">
@@ -39,9 +40,6 @@ import { SITE_NAME, TAGLINE } from '../config';
             </svg>
             <p>{TAGLINE}</p>
           </div>
-          <a id="model-portfolio-link" href="#" class="model-portfolio-link" style="display:none" aria-label="View project in portfolio">
-            View Project ↗
-          </a>
         </div>
       </ModelViewer>
 
@@ -156,20 +154,17 @@ import { SITE_NAME, TAGLINE } from '../config';
     left: 3rem;
     pointer-events: auto;
     display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.65rem 1.35rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    padding: 0.6rem 1.25rem;
     border: 1px solid rgba(200, 168, 122, 0.45);
     background: rgba(12, 12, 12, 0.3);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    color: rgba(255, 255, 255, 0.82);
-    font-size: 0.72rem;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
     text-decoration: none;
     border-radius: 2px;
-    transition: background 0.3s, border-color 0.3s, box-shadow 0.3s, color 0.3s;
+    transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
     box-shadow:
       0 0 18px rgba(200, 168, 122, 0.13),
       0 0 48px rgba(200, 168, 122, 0.06);
@@ -178,49 +173,60 @@ import { SITE_NAME, TAGLINE } from '../config';
   .portfolio-cta:hover {
     background: rgba(200, 168, 122, 0.1);
     border-color: rgba(200, 168, 122, 0.72);
-    color: #fff;
     box-shadow:
       0 0 24px rgba(200, 168, 122, 0.24),
       0 0 64px rgba(200, 168, 122, 0.12);
   }
 
+  .cta-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    transition: color 0.3s;
+  }
+
+  .portfolio-cta:hover .cta-label {
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .cta-name {
+    font-size: 0.82rem;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    color: var(--accent);
+    transition: color 0.3s, letter-spacing 0.25s;
+  }
+
+  .portfolio-cta:hover .cta-name {
+    color: #fff;
+    letter-spacing: 0.04em;
+  }
+
   .cta-arrow {
-    font-size: 0.85em;
+    font-size: 0.9em;
     transition: transform 0.25s;
+    display: inline-block;
   }
 
   .portfolio-cta:hover .cta-arrow {
     transform: translate(2px, -2px);
   }
-
-  .model-portfolio-link {
-    pointer-events: auto;
-    font-size: 0.68rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--accent);
-    opacity: 0.75;
-    transition: opacity 0.2s, letter-spacing 0.2s;
-    text-decoration: none;
-    align-self: flex-end;
-  }
-  .model-portfolio-link:hover { opacity: 1; letter-spacing: 0.14em; }
 </style>
 
 <script>
-  function initModelLink() {
+  function initModelCta() {
     const viewer = document.querySelector<HTMLElement>('.viewer-root');
-    const link = document.getElementById('model-portfolio-link') as HTMLAnchorElement | null;
-    if (!viewer || !link) return;
+    const cta = document.getElementById('model-cta') as HTMLAnchorElement | null;
+    const nameEl = document.getElementById('cta-model-name');
+    if (!viewer || !cta || !nameEl) return;
     viewer.addEventListener('modelchange', (e: Event) => {
-      const { portfolioUrl } = (e as CustomEvent<{portfolioUrl: string}>).detail;
-      if (portfolioUrl) {
-        link.href = portfolioUrl;
-        link.style.display = '';
-      }
+      const { portfolioUrl, name } = (e as CustomEvent<{portfolioUrl: string, name: string}>).detail;
+      if (portfolioUrl) cta.href = portfolioUrl;
+      if (name) nameEl.textContent = name;
     });
   }
-  document.addEventListener('astro:page-load', initModelLink);
-  initModelLink();
+  document.addEventListener('astro:page-load', initModelCta);
+  initModelCta();
 </script>
 

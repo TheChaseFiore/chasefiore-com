@@ -9,7 +9,7 @@ interface Props {
   fallbackImage?: string;
   cameraPos?: [number, number, number];
   cameraTgt?: [number, number, number];
-  cycleModels?: Array<{url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number], portfolioUrl?: string, initialCutZ?: number}>;
+  cycleModels?: Array<{url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number], portfolioUrl?: string, initialCutZ?: number, name?: string}>;
   initialCutZ?: number;
   navArrows?: boolean;
   mouseTilt?: boolean;
@@ -150,7 +150,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
   const cameraPos: [number,number,number] = root.dataset.cameraPos ? JSON.parse(root.dataset.cameraPos) : [4.5, 5.5, 7];
   const cameraTgt: [number,number,number] = root.dataset.cameraTgt ? JSON.parse(root.dataset.cameraTgt) : [0, 3.5, 0];
 
-  type CycleEntry = {url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number], portfolioUrl?: string, initialCutZ?: number};
+  type CycleEntry = {url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number], portfolioUrl?: string, initialCutZ?: number, name?: string};
   const cycleList: CycleEntry[] = root.dataset.cycleModels ? JSON.parse(root.dataset.cycleModels) : [];
   const transOverlay = root.querySelector<HTMLElement>('.viewer-transition-overlay');
   let cycleActive = false;
@@ -557,7 +557,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
       await doTransition(gltf, config);
       root.dispatchEvent(new CustomEvent('modelchange', {
         bubbles: true,
-        detail: { index: currentModelIdx, portfolioUrl: config.portfolioUrl ?? '' },
+        detail: { index: currentModelIdx, portfolioUrl: config.portfolioUrl ?? '', name: config.name ?? '' },
       }));
     } catch (err) {
       console.error('[ModelViewer] cycle load failed', err);
@@ -573,7 +573,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
     const initialEntry = cycleList[currentModelIdx];
     root.dispatchEvent(new CustomEvent('modelchange', {
       bubbles: true,
-      detail: { index: currentModelIdx, portfolioUrl: initialEntry?.portfolioUrl ?? '' },
+      detail: { index: currentModelIdx, portfolioUrl: initialEntry?.portfolioUrl ?? '', name: initialEntry?.name ?? '' },
     }));
     runNextCycle();
   }
