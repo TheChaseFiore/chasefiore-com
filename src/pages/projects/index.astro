@@ -103,13 +103,15 @@ const drawingSorted    = drawingEntries.sort(sortByDate);
       <div class="category-label">Audio Mastering</div>
       <ol class="preview-tracks">
         {trackNames.map((name, i) => (
-          <li class="preview-track">
-            <span class="preview-num">{String(i + 1).padStart(2, '0')}</span>
-            <span class="preview-name">{name}</span>
+          <li>
+            <a href={`/projects/audio-mastering/?track=${i}`} class="preview-track">
+              <span class="preview-num">{String(i + 1).padStart(2, '0')}</span>
+              <span class="preview-name">{name}</span>
+            </a>
           </li>
         ))}
       </ol>
-      <a href="/projects/audio-mastering/" class="section-enter">Listen to recordings ↗</a>
+      <a href="/projects/audio-mastering/" class="section-enter">View all recordings ↗</a>
     </section>
   </main>
 </Layout>
@@ -210,13 +212,20 @@ const drawingSorted    = drawingEntries.sort(sortByDate);
     margin-bottom: 0;
   }
 
+  .preview-tracks li { list-style: none; }
+
   .preview-track {
     display: flex;
     align-items: center;
     gap: 1rem;
     padding: 0.65rem 0.5rem;
     border-bottom: 1px solid var(--border);
+    text-decoration: none;
+    transition: background 0.15s;
   }
+  .preview-track:hover { background: rgba(255,255,255,0.03); }
+  .preview-track:hover .preview-num { color: var(--accent); }
+  .preview-track:hover .preview-name { color: var(--text); }
 
   .preview-num {
     font-size: 0.68rem;
@@ -224,11 +233,13 @@ const drawingSorted    = drawingEntries.sort(sortByDate);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     min-width: 1.6rem;
+    transition: color 0.15s;
   }
 
   .preview-name {
     font-size: 0.82rem;
     color: rgba(232,232,232,0.7);
+    transition: color 0.15s;
   }
 
   .project-grid {
