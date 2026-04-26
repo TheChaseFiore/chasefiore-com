@@ -21,14 +21,18 @@ import { SITE_NAME, TAGLINE } from '../config';
         mouseTilt={true}
         cameraPos={[-1.88, 1.31, -3.15]}
         cameraTgt={[-0.49, 0.12, 0.08]}
+        sectionCuts={true}
         cycleModels={[
           {url: '/models/Streetcar-draco.glb', cameraPos: [-2.94, 0.42, 1.03], cameraTgt: [0.56, 0.56, 0.67], portfolioUrl: '/portfolio/streetcar/'},
           {url: '/models/Charlie_Brown-draco.glb', cameraPos: [4.58, 2.40, 5.21], cameraTgt: [1.25, 0.84, 0.31], portfolioUrl: '/portfolio/youre-a-good-man-charlie-brown/'},
-          {url: '/models/Coffee_Shop-draco.glb', cameraPos: [-1.59, 1.17, 5.09], cameraTgt: [-2.66, 0.83, 1.52], portfolioUrl: '/portfolio/interior-design/'},
+          {url: '/models/Coffee_Shop-draco.glb', cameraPos: [-1.59, 1.17, 5.09], cameraTgt: [-2.66, 0.83, 1.52], portfolioUrl: '/portfolio/interior-design/', initialCutZ: 95},
           {url: '/models/SSE-draco.glb', cameraPos: [-1.88, 1.31, -3.15], cameraTgt: [-0.49, 0.12, 0.08], portfolioUrl: '/portfolio/spaceship-earth-scad/'},
         ]}
       >
         <div class="hero-overlay">
+          <a href="/portfolio/" class="portfolio-cta">
+            Selected Works <span class="cta-arrow">↗</span>
+          </a>
           <div class="hero-text">
             <svg class="hero-name-svg" viewBox="0 0 600 108" xmlns="http://www.w3.org/2000/svg" aria-label="Chase Fiore" role="img">
               <text x="0" y="92" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-weight="300" font-size="90" letter-spacing="-3" fill="rgba(255,255,255,0.92)">Chase Fiore</text>
@@ -143,7 +147,52 @@ import { SITE_NAME, TAGLINE } from '../config';
     }
 
     .hero-overlay { padding: 1.75rem; }
+    .portfolio-cta { top: 1.75rem; left: 1.75rem; }
   }
+  /* ── Portfolio CTA button ── */
+  .portfolio-cta {
+    position: absolute;
+    top: 2.5rem;
+    left: 3rem;
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.65rem 1.35rem;
+    border: 1px solid rgba(200, 168, 122, 0.45);
+    background: rgba(12, 12, 12, 0.3);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.72rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    text-decoration: none;
+    border-radius: 2px;
+    transition: background 0.3s, border-color 0.3s, box-shadow 0.3s, color 0.3s;
+    box-shadow:
+      0 0 18px rgba(200, 168, 122, 0.13),
+      0 0 48px rgba(200, 168, 122, 0.06);
+  }
+
+  .portfolio-cta:hover {
+    background: rgba(200, 168, 122, 0.1);
+    border-color: rgba(200, 168, 122, 0.72);
+    color: #fff;
+    box-shadow:
+      0 0 24px rgba(200, 168, 122, 0.24),
+      0 0 64px rgba(200, 168, 122, 0.12);
+  }
+
+  .cta-arrow {
+    font-size: 0.85em;
+    transition: transform 0.25s;
+  }
+
+  .portfolio-cta:hover .cta-arrow {
+    transform: translate(2px, -2px);
+  }
+
   .model-portfolio-link {
     pointer-events: auto;
     font-size: 0.68rem;

@@ -4,12 +4,32 @@ import { getCollection } from 'astro:content';
 import { Image, getImage } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
 
+const CATEGORY_LABELS: Record<string, string> = {
+  disney_live_entertainment: 'Disney Live Entertainment',
+  falcons_creative_group: "Falcon's Creative Group",
+  scad_themed_entertainment_design: 'SCAD: Themed Entertainment',
+  universal_creative: 'Universal Creative',
+  volunteer: 'Volunteer',
+};
+
+const CATEGORY_ORDER = [
+  'disney_live_entertainment',
+  'falcons_creative_group',
+  'scad_themed_entertainment_design',
+  'universal_creative',
+  'volunteer',
+];
+
 const allProjects = await getCollection('portfolio');
 const sorted = allProjects.sort((a, b) => {
   const aDate = a.data.publishDate?.getTime() ?? 0;
   const bDate = b.data.publishDate?.getTime() ?? 0;
   return bDate - aDate;
 });
+
+const presentCategories = CATEGORY_ORDER.filter(cat =>
+  sorted.some(p => p.id.startsWith(cat + '/'))
+);
 
 const allImageModules = import.meta.glob<{ default: ImageMetadata }>(
   '/src/content/portfolio/**/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}',
@@ -32,14 +52,26 @@ for (const project of sorted) {
 
 <Layout title="Chase Fiore | Selected Works">
   <section class="grid-section" id="work">
+    <!-- Category navigation -->
+    <div class="category-nav" role="tablist" aria-label="Filter by employer">
+      <button class="cat-tab" data-category="" role="tab">All</button>
+      {presentCategories.map(cat => (
+        <button class="cat-tab" data-category={cat} role="tab">
+          {CATEGORY_LABELS[cat] ?? cat}
+        </button>
+      ))}
+    </div>
+
+    <!-- Tag filter bar (shown when filtering by tag) -->
     <div id="tag-filter-bar" class="tag-filter-bar" hidden>
-      <span class="filter-label">Filtering by</span>
+      <span class="filter-label">Filtering by tag</span>
       <span id="active-tag-name" class="filter-tag"></span>
       <button id="clear-tag-filter" class="filter-clear" aria-label="Clear filter">✕ Clear</button>
     </div>
+
     <ul class="portfolio-grid">
       {sorted.map((project) => (
-        <li>
+        <li data-category={project.id.split('/')[0]}>
           <a href={`/portfolio/${project.id}/`} class="project-card"
              data-images={JSON.stringify(projectPreviewUrls[project.id] ?? [])}
              data-title={project.data.title}
@@ -82,6 +114,37 @@ for (const project of sorted) {
 </Layout>
 
 <script>
+  // ── Category filtering ──────────────────────────────────────────
+  function initCategoryFilter() {
+    const cat   = new URLSearchParams(location.search).get('category');
+    const tabs  = document.querySelectorAll<HTMLButtonElement>('.cat-tab');
+    const items = document.querySelectorAll<HTMLElement>('.portfolio-grid > li');
+
+    tabs.forEach(tab => {
+      tab.classList.toggle('active', (tab.dataset.category ?? '') === (cat ?? ''));
+      tab.setAttribute('aria-selected', String((tab.dataset.category ?? '') === (cat ?? '')));
+    });
+
+    items.forEach(li => {
+      li.style.display = (!cat || li.dataset.category === cat) ? '' : 'none';
+    });
+
+    tabs.forEach(tab => {
+      tab.onclick = () => {
+        const url = new URL(location.href);
+        if (tab.dataset.category) {
+          url.searchParams.set('category', tab.dataset.category);
+        } else {
+          url.searchParams.delete('category');
+        }
+        url.searchParams.delete('tag');
+        history.pushState({}, '', url);
+        initCategoryFilter();
+        initTagFilter();
+      };
+    });
+  }
+
   // ── Tag filtering ───────────────────────────────────────────────
   function initTagFilter() {
     const tag   = new URLSearchParams(location.search).get('tag');
@@ -94,17 +157,21 @@ for (const project of sorted) {
       if (label) { label.textContent = tag; }
       items.forEach(li => {
         const tags = li.querySelector<HTMLAnchorElement>('.project-card')?.dataset.tags ?? '';
-        li.style.display = tags.split('|').includes(tag) ? '' : 'none';
+        const matchesTag = tags.split('|').includes(tag);
+        // Respect category filter too
+        const cat = new URLSearchParams(location.search).get('category');
+        const matchesCat = !cat || li.dataset.category === cat;
+        li.style.display = (matchesTag && matchesCat) ? '' : 'none';
       });
     } else {
       if (bar) { bar.setAttribute('hidden', ''); }
-      items.forEach(li => { li.style.display = ''; });
     }
 
     document.getElementById('clear-tag-filter')?.addEventListener('click', () => {
       const url = new URL(location.href);
       url.searchParams.delete('tag');
       history.pushState({}, '', url);
+      initCategoryFilter();
       initTagFilter();
     });
   }
@@ -236,6 +303,7 @@ for (const project of sorted) {
 
   document.addEventListener('astro:page-load', () => {
     initCardPreview();
+    initCategoryFilter();
     initTagFilter();
   });
 
@@ -244,20 +312,63 @@ for (const project of sorted) {
   });
 
   initCardPreview();
+  initCategoryFilter();
   initTagFilter();
 
-  window.addEventListener('popstate', initTagFilter);
+  window.addEventListener('popstate', () => {
+    initCategoryFilter();
+    initTagFilter();
+  });
 </script>
 
 <style>
+  /* ── Category nav ── */
+  .category-nav {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .category-nav::-webkit-scrollbar { display: none; }
+
+  .cat-tab {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    font-family: var(--font);
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.85rem;
+    border-radius: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+  }
+
+  .cat-tab:hover {
+    color: var(--text);
+    border-color: var(--border);
+  }
+
+  .cat-tab.active {
+    color: var(--accent);
+    border-color: rgba(200, 168, 122, 0.45);
+    background: rgba(200, 168, 122, 0.07);
+  }
+
   /* ── Tag filter bar ── */
   .tag-filter-bar {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    padding: 0.65rem 1.25rem;
-    background: rgba(200, 168, 122, 0.06);
-    border-bottom: 1px solid rgba(200, 168, 122, 0.2);
+    padding: 0.5rem 1.25rem;
+    background: rgba(200, 168, 122, 0.04);
+    border-bottom: 1px solid rgba(200, 168, 122, 0.15);
   }
 
   .filter-label {
@@ -400,6 +511,8 @@ for (const project of sorted) {
 
   @media (max-width: 500px) {
     .portfolio-grid { grid-template-columns: repeat(2, 1fr); gap: 1px; }
+    .category-nav { padding: 0.6rem 0.75rem; gap: 0.3rem; }
+    .cat-tab { font-size: 0.62rem; padding: 0.25rem 0.65rem; }
   }
 
   /* ── Card hover preview ── */

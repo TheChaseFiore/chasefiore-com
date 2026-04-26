@@ -10,6 +10,14 @@ interface Props {
   project: CollectionEntry<'portfolio'>;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  disney_live_entertainment: 'Disney Live Entertainment',
+  falcons_creative_group: "Falcon's Creative Group",
+  scad_themed_entertainment_design: 'SCAD: Themed Entertainment',
+  universal_creative: 'Universal Creative',
+  volunteer: 'Volunteer',
+};
+
 export async function getStaticPaths() {
   const allProjects = await getCollection('portfolio');
   return allProjects.map((project) => ({
@@ -21,6 +29,9 @@ export async function getStaticPaths() {
 const { project } = Astro.props;
 const { Content } = await render(project);
 const hasModel = Boolean(project.data.model);
+
+const categorySlug = project.id.split('/')[0];
+const categoryLabel = CATEGORY_LABELS[categorySlug] ?? categorySlug;
 
 const allImages = import.meta.glob<{ default: ImageMetadata }>(
   '/src/content/portfolio/**/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}',
@@ -54,9 +65,11 @@ const galleryImages = Object.entries(allImages)
 
     <div class="content-wrap">
       <nav class="breadcrumb">
-        <a href="/">← All Work</a>
+        <a href="/portfolio/">← Portfolio</a>
+        <span class="breadcrumb-sep">/</span>
+        <a href={`/portfolio/?category=${categorySlug}`} class="breadcrumb-category">{categoryLabel}</a>
         {project.data.tags && project.data.tags.map((tag: string) => (
-          <a class="tag" href={`/?tag=${encodeURIComponent(tag)}`}>{tag}</a>
+          <a class="tag" href={`/portfolio/?tag=${encodeURIComponent(tag)}`}>{tag}</a>
         ))}
       </nav>
 
@@ -131,11 +144,9 @@ const galleryImages = Object.entries(allImages)
     function show(idx: number) {
       current = (idx + srcs.length) % srcs.length;
       lbImg!.classList.remove('lb-img--visible');
-      // Swap src then re-trigger the entrance animation
       requestAnimationFrame(() => {
         lbImg!.src = srcs[current];
         lbImg!.onload = () => lbImg!.classList.add('lb-img--visible');
-        // If already cached the onload may not fire
         if (lbImg!.complete) lbImg!.classList.add('lb-img--visible');
       });
       if (lbCounter) lbCounter.textContent = `${current + 1} / ${srcs.length}`;
@@ -211,9 +222,10 @@ const galleryImages = Object.entries(allImages)
   .breadcrumb {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
     margin-bottom: 2rem;
     font-size: 0.85rem;
+    flex-wrap: wrap;
   }
 
   .breadcrumb a {
@@ -222,6 +234,17 @@ const galleryImages = Object.entries(allImages)
   }
 
   .breadcrumb a:hover { color: var(--accent); }
+
+  .breadcrumb-sep {
+    color: var(--border);
+    user-select: none;
+  }
+
+  .breadcrumb-category {
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
 
   .tag {
     font-size: 0.7rem;

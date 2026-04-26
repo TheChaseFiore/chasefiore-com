@@ -9,7 +9,7 @@ interface Props {
   fallbackImage?: string;
   cameraPos?: [number, number, number];
   cameraTgt?: [number, number, number];
-  cycleModels?: Array<{url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number]}>;
+  cycleModels?: Array<{url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number], portfolioUrl?: string, initialCutZ?: number}>;
   initialCutZ?: number;
   navArrows?: boolean;
   mouseTilt?: boolean;
@@ -150,7 +150,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
   const cameraPos: [number,number,number] = root.dataset.cameraPos ? JSON.parse(root.dataset.cameraPos) : [4.5, 5.5, 7];
   const cameraTgt: [number,number,number] = root.dataset.cameraTgt ? JSON.parse(root.dataset.cameraTgt) : [0, 3.5, 0];
 
-  type CycleEntry = {url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number], portfolioUrl?: string};
+  type CycleEntry = {url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number], portfolioUrl?: string, initialCutZ?: number};
   const cycleList: CycleEntry[] = root.dataset.cycleModels ? JSON.parse(root.dataset.cycleModels) : [];
   const transOverlay = root.querySelector<HTMLElement>('.viewer-transition-overlay');
   let cycleActive = false;
@@ -473,7 +473,35 @@ function setupViewer(root: HTMLElement): CleanupFn {
     controls.target.set(...newTgt);
     controls.update();
 
-    // Fade from black — model appears assembled
+    // Reset clip planes from previous model, then apply this model's cut
+    clipX.constant = clipY.constant = clipZ.constant = CLIP_OFF;
+    activeCutAxis = null;
+    root.querySelectorAll<HTMLElement>('[data-cut-axis]').forEach(btn => {
+      btn.classList.remove('active');
+      btn.setAttribute('aria-pressed', 'false');
+    });
+    root.querySelector<HTMLElement>('.viewer-cut-slider-wrap')?.setAttribute('hidden', '');
+
+    if (showSectionCuts) {
+      const wb = new THREE.Box3().setFromObject(newModel);
+      cutBounds.x = [wb.min.x, wb.max.x];
+      cutBounds.y = [wb.min.y, wb.max.y];
+      cutBounds.z = [wb.min.z, wb.max.z];
+
+      if (config.initialCutZ !== undefined) {
+        const t = config.initialCutZ / 100;
+        const [mn, mx] = cutBounds.z;
+        clipZ.constant = mn + (mx - mn) * t;
+        activeCutAxis = 'z';
+        root.querySelector('[data-cut-axis="z"]')?.classList.add('active');
+        root.querySelector('[data-cut-axis="z"]')?.setAttribute('aria-pressed', 'true');
+        const slider = root.querySelector<HTMLInputElement>('.viewer-cut-slider');
+        if (slider) slider.value = String(config.initialCutZ);
+        root.querySelector<HTMLElement>('.viewer-cut-slider-wrap')?.removeAttribute('hidden');
+      }
+    }
+
+    // Fade from black — model appears with cut already applied
     await new Promise<void>(res => requestAnimationFrame(() => res()));
     transOverlay.classList.remove('is-active');
     await new Promise<void>(res => setTimeout(res, 900));
