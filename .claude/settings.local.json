@@ -52,7 +52,24 @@
       "Bash(curl -s --head \"https://assets.chasefiore.com/audio_mastering/Nashville.wav\")",
       "Bash(python3 -c ' *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://assets.chasefiore.com/audio_mastering/Nashville.wav\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --head \"https://assets.chasefiore.com/audio_mastering/Nashville.wav\")"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --head \"https://assets.chasefiore.com/audio_mastering/Nashville.wav\")",
+      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/Dotty/contents\")",
+      "Bash(python3 -c \"import json,sys; [print\\(f['name'], f['type']\\) for f in json.load\\(sys.stdin\\)]\")",
+      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/monopoly/contents\")",
+      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/chasefiore-com/contents/src/pages\")",
+      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/Dotty/contents/main.py\")",
+      "Bash(python3 -c \"import json,sys,base64; d=json.load\\(sys.stdin\\); print\\(base64.b64decode\\(d['content']\\).decode\\(\\)[:1500]\\)\")",
+      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/monopoly/contents/monopoly.py\")",
+      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/chasefiore-com/contents/src/components\")",
+      "Bash(python3 -c \"import json,sys; [print\\(f['name']\\) for f in json.load\\(sys.stdin\\)]\")",
+      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/chasefiore-com/contents/src/components/ModelViewer.astro\")",
+      "Bash(python3 -c \"import json,sys,base64; d=json.load\\(sys.stdin\\); print\\(base64.b64decode\\(d['content']\\).decode\\(\\)[:2000]\\)\")",
+      "Bash(curl -s -o /home/chase/Documents/VSCode/chasefiore-com/src/content/personal_projects/programing/monopoly/monopoly_01.jpg \"https://img.youtube.com/vi/MEq2t7k_ncA/maxresdefault.jpg\")",
+      "Bash(echo \"monopoly thumbnail: $?\")",
+      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/stan_the_bird/contents\")",
+      "Bash(curl -s -o /home/chase/Documents/VSCode/chasefiore-com/src/content/personal_projects/programing/dynamo_catenary/dynamo_catenary_01.jpg \"https://img.youtube.com/vi/_W5_66S54bY/maxresdefault.jpg\")",
+      "Bash(echo \"dynamo thumbnail: $?\")",
+      "Bash(curl -s \"https://api.github.com/repos/TheChaseFiore/stan_the_bird/contents/Stan_the_Bird_jun01a.ino\")"
     ]
   }
 }

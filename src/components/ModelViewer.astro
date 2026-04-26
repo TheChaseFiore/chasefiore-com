@@ -150,7 +150,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
   const cameraPos: [number,number,number] = root.dataset.cameraPos ? JSON.parse(root.dataset.cameraPos) : [4.5, 5.5, 7];
   const cameraTgt: [number,number,number] = root.dataset.cameraTgt ? JSON.parse(root.dataset.cameraTgt) : [0, 3.5, 0];
 
-  type CycleEntry = {url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number]};
+  type CycleEntry = {url: string, cameraPos?: [number,number,number], cameraTgt?: [number,number,number], portfolioUrl?: string};
   const cycleList: CycleEntry[] = root.dataset.cycleModels ? JSON.parse(root.dataset.cycleModels) : [];
   const transOverlay = root.querySelector<HTMLElement>('.viewer-transition-overlay');
   let cycleActive = false;
@@ -527,6 +527,10 @@ function setupViewer(root: HTMLElement): CleanupFn {
         : await loadGltfAsync(config.url);
       if (!cycleActive) return;
       await doTransition(gltf, config);
+      root.dispatchEvent(new CustomEvent('modelchange', {
+        bubbles: true,
+        detail: { index: currentModelIdx, portfolioUrl: config.portfolioUrl ?? '' },
+      }));
     } catch (err) {
       console.error('[ModelViewer] cycle load failed', err);
     }
@@ -538,6 +542,11 @@ function setupViewer(root: HTMLElement): CleanupFn {
     cycleActive = true;
     cycleModelGroup = initial;
     currentModelIdx = cycleList.length - 1;
+    const initialEntry = cycleList[currentModelIdx];
+    root.dispatchEvent(new CustomEvent('modelchange', {
+      bubbles: true,
+      detail: { index: currentModelIdx, portfolioUrl: initialEntry?.portfolioUrl ?? '' },
+    }));
     runNextCycle();
   }
 

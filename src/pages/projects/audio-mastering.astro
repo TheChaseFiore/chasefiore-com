@@ -37,6 +37,9 @@ const tracks = trackNames.map((name, i) => ({
       <header class="page-header">
         <h1>Audio Mastering</h1>
         <p>Selected works in audio engineering and mastering.</p>
+        <a class="cd-credit" href="https://www.discogs.com/release/27145149" target="_blank" rel="noopener">
+          CD Credit: Pittsburgh Jewish Music Festival ↗
+        </a>
       </header>
 
       <!-- Player -->
@@ -199,6 +202,18 @@ const tracks = trackNames.map((name, i) => ({
     padding: 0.15rem 0.5rem;
     border-radius: 2px;
   }
+
+  .cd-credit {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    opacity: 0.75;
+    transition: opacity 0.2s;
+    text-decoration: none;
+  }
+  .cd-credit:hover { opacity: 1; }
 
   .page-header { margin-bottom: 2.5rem; }
   .page-header h1 {
