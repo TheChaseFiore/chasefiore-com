@@ -36,7 +36,17 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('login'\\), d.get\\('name'\\)\\)\")",
       "Bash(curl -s \"https://www.youtube.com/watch?v=MEq2t7k_ncA\")",
       "Bash(curl -s \"https://www.youtube.com/watch?v=_W5_66S54bY\")",
-      "Bash(curl -s \"https://www.youtube.com/watch?v=S3opJToQPZE\")"
+      "Bash(curl -s \"https://www.youtube.com/watch?v=S3opJToQPZE\")",
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com log --oneline --all)",
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com show --stat c97cc94)",
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com show --stat a4ebeb7)",
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com show c97cc94 --diff-filter=D --name-only)",
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com show c97cc94 --name-status)",
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com log --all --full-history -- \"**\\(1\\)*\")",
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com log --all --full-history --name-status -- \"src/content/personal_projects/drawing/oil_painting/*\")",
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com show debd70cbe52f8fec9912da4ebc6a8f83da5a6f5e --name-status)",
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com log --all --full-history --name-status -- \"src/content/portfolio/epcot*/*\")",
+      "Bash(git -C /home/chase/Documents/VSCode/chasefiore-com log --all --full-history --name-status -- \"src/content/personal_projects/drawing/pencil_and_paper/*\")"
     ]
   }
 }
