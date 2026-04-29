@@ -22,7 +22,7 @@ import Layout from '../layouts/Layout.astro';
 
       <form
         id="contact-form"
-        action="https://formspree.io/f/mlgalneq"
+        action="/api/contact"
         method="POST"
       >
         <div class="field">
@@ -45,6 +45,12 @@ import Layout from '../layouts/Layout.astro';
           <textarea id="message" name="message" required rows="6" placeholder="Tell me about your project..."></textarea>
         </div>
 
+        <div
+          class="cf-turnstile"
+          data-sitekey="0x4AAAAAADFrjSU_TlsGp4lP"
+          data-theme="dark"
+        ></div>
+
         <button type="submit" id="submit-btn">
           <span class="btn-text">Send Message</span>
           <span class="btn-sending" aria-hidden="true">Sending…</span>
@@ -56,6 +62,8 @@ import Layout from '../layouts/Layout.astro';
     </div>
   </main>
 </Layout>
+
+<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
 <script>
   const form = document.getElementById('contact-form') as HTMLFormElement;
@@ -201,6 +209,10 @@ import Layout from '../layouts/Layout.astro';
   input:focus,
   textarea:focus {
     border-color: rgba(200, 168, 122, 0.5);
+  }
+
+  .cf-turnstile {
+    margin-top: 0.25rem;
   }
 
   button[type="submit"] {
