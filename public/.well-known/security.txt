@@ -1,4 +1,4 @@
-Contact: mailto:hello@chasefiore.com
+Contact: mailto:security@chasefiore.com
 Expires: 2027-04-29T00:00:00.000Z
 Preferred-Languages: en
 Canonical: https://chasefiore.com/.well-known/security.txt
