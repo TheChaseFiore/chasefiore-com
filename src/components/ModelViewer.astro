@@ -115,6 +115,23 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 type CleanupFn = () => void;
 const cleanups = new Map<Element, CleanupFn>();
 
+function disposeObject3D(obj: THREE.Object3D) {
+  obj.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry?.dispose();
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const m of mats) {
+      if (!m) continue;
+      for (const key in m) {
+        const val = (m as unknown as Record<string, { isTexture?: boolean; dispose?: () => void } | null>)[key];
+        if (val && val.isTexture) val.dispose?.();
+      }
+      m.dispose?.();
+    }
+  });
+}
+
 interface ExplodePart {
   object: THREE.Object3D;
   origin: THREE.Vector3;
@@ -165,6 +182,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
   let activeCutAxis: 'x' | 'y' | 'z' | null = null; // shared so onModelLoaded can set initial cut
 
   const mouseTiltEnabled = root.dataset.mouseTilt === 'true';
+  const isMobile = window.matchMedia('(hover: none)').matches;
 
   // ── Scene ──────────────────────────────────────────────────────
   const scene = new THREE.Scene();
@@ -178,7 +196,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   // ── Renderer ────────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -206,7 +224,8 @@ function setupViewer(root: HTMLElement): CleanupFn {
   const keyLight = new THREE.DirectionalLight(0xfff0d8, 2.5);
   keyLight.position.set(5, 14, 10);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(2048, 2048);
+  const shadowMapSize = isMobile ? 1024 : 2048;
+  keyLight.shadow.mapSize.set(shadowMapSize, shadowMapSize);
   keyLight.shadow.camera.near = 0.5;
   keyLight.shadow.camera.far = 50;
   keyLight.shadow.camera.left = -15;
@@ -459,8 +478,13 @@ function setupViewer(root: HTMLElement): CleanupFn {
     await new Promise<void>(res => setTimeout(res, 1000));
     if (!cycleActive) return;
 
-    // Swap model while screen is black — new model starts assembled
-    if (cycleModelGroup) modelContainer.remove(cycleModelGroup);
+    // Swap model while screen is black — new model starts assembled.
+    // Dispose the outgoing model's GPU resources; without this Safari OOMs
+    // after a few cycles.
+    if (cycleModelGroup) {
+      modelContainer.remove(cycleModelGroup);
+      disposeObject3D(cycleModelGroup);
+    }
     const newModel = prepareGltf(gltf);
     cycleExplodeParts = buildExplodeParts(newModel);
     cycleExplodeProgress = 0;
@@ -780,7 +804,25 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   // ── Loop ────────────────────────────────────────────────────────
   let rafId = 0;
+  let contextLost = false;
+
+  // Safari (esp. iOS) drops the GL context under memory pressure. Without
+  // these handlers an uncaught error crashes the tab and triggers Safari's
+  // "A problem repeatedly occurred" sheet.
+  const onContextLost = (e: Event) => {
+    e.preventDefault();
+    contextLost = true;
+    cancelAnimationFrame(rafId);
+  };
+  const onContextRestored = () => {
+    contextLost = false;
+    tick();
+  };
+  canvas.addEventListener('webglcontextlost', onContextLost);
+  canvas.addEventListener('webglcontextrestored', onContextRestored);
+
   function tick() {
+    if (contextLost) return;
     rafId = requestAnimationFrame(tick);
     controls.update();
 
@@ -834,7 +876,8 @@ function setupViewer(root: HTMLElement): CleanupFn {
     clipX.constant = clipY.constant = clipZ.constant = CLIP_OFF;
     ro.disconnect();
     controls.dispose();
-    renderer.dispose();
+    canvas.removeEventListener('webglcontextlost', onContextLost);
+    canvas.removeEventListener('webglcontextrestored', onContextRestored);
     canvas.removeEventListener('pointerdown', onPointerDown);
     window.removeEventListener('pointerup', onPointerUp);
     window.removeEventListener('keydown', onKeyDebug);
@@ -843,6 +886,8 @@ function setupViewer(root: HTMLElement): CleanupFn {
     for (const p of explodeParts) p.object.position.copy(p.origin);
     for (const p of cycleExplodeParts) p.object.position.copy(p.origin);
     tiltCleanups.forEach(fn => fn());
+    disposeObject3D(scene);
+    renderer.dispose();
     root.removeAttribute('data-viewer-init');
   };
 }
