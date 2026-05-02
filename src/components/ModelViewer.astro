@@ -607,9 +607,6 @@ function setupViewer(root: HTMLElement): CleanupFn {
 
   // ── Model / Placeholder ─────────────────────────────────────────
   if (modelUrl) {
-    const scheduleLoad = (window as any).requestIdleCallback
-      ?? ((fn: () => void) => setTimeout(fn, 200));
-
     function onModelLoaded(gltf: GLTF) {
       const model = gltf.scene;
       const box = new THREE.Box3().setFromObject(model);
@@ -724,7 +721,7 @@ function setupViewer(root: HTMLElement): CleanupFn {
       );
     }
 
-    scheduleLoad(() => tryLoad(false));
+    tryLoad(false);
   } else {
     if (loadingEl) loadingEl.remove();
     explodeParts.push(...buildPlaceholder(scene));
