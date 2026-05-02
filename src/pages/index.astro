@@ -55,14 +55,10 @@ import { SITE_NAME, TAGLINE } from '../config';
 
 
 <style>
-  /* ── Disable scroll on landing page ── */
-  :global(body) {
-    overflow: hidden;
-  }
-
   /* ── Hero layout ── */
   .hero-pin {
     height: calc(100dvh - var(--nav-height));
+    overflow: clip;
   }
 
   .hero {
