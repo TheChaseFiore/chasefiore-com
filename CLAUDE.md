@@ -63,9 +63,7 @@ Portfolio entries are in `src/content/portfolio/<category>/<slug>/index.md`. Eac
 From the audit, items deferred for later:
 - Lazy-load DRACO decoder (needs verification that Vite already page-scopes the import — agent's claim was suspect)
 - `astro:assets` `<Image>` on `photography.astro`, `projects/drawing/[id].astro`, `projects/lighting-design/[id].astro` (raw `<img>` tags, missing webp + lazy)
-- OG/Twitter meta tags in `Layout.astro`
-- `:global(body) { overflow: hidden }` in `index.astro:58` — should be `overflow: clip` on `.hero-pin`
-- Possibly-dead `src/components/Welcome.astro` (verify with grep before deleting)
+- Add a real `og:image` (1200×630 hero shot). Layout has the OG/Twitter tags wired; just needs an image file + a `<meta property="og:image">` line.
 - Long inline `<style>` in `resume.astro` could become sub-components
 
 ## Things to avoid

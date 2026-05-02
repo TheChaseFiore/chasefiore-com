@@ -9,6 +9,7 @@ interface Props {
 
 const { title, description = `${TAGLINE} by ${SITE_NAME}` } = Astro.props;
 const path = Astro.url.pathname;
+const canonicalUrl = new URL(path, Astro.site).toString();
 ---
 
 <!doctype html>
@@ -20,6 +21,17 @@ const path = Astro.url.pathname;
     <link rel="icon" href="/favicon.ico" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+
     {path === '/' && (
       <link rel="preload" as="fetch" type="model/gltf-binary" href="/models/landing/SSE-draco.glb" crossorigin />
     )}
