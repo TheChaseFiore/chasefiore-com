@@ -1,2 +1,19 @@
+# Astro emits hashed filenames under /_astro/. Safe to cache forever.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# 3D models change rarely and are large. Cache 30 days, allow stale-while-
+# revalidate for an additional day so return visits feel instant while a
+# fresh copy fetches in the background.
+/models/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=86400
+  Content-Type: model/gltf-binary
+
+# DRACO decoder. WASM needs the explicit Content-Type for streaming
+# instantiation; the JS fallback is also long-lived.
 /draco/*.wasm
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=86400
   Content-Type: application/wasm
+
+/draco/*.js
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=86400
