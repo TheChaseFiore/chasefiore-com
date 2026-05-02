@@ -20,6 +20,9 @@ const path = Astro.url.pathname;
     <link rel="icon" href="/favicon.ico" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
+    {path === '/' && (
+      <link rel="preload" as="fetch" type="model/gltf-binary" href="/models/landing/SSE-draco.glb" crossorigin />
+    )}
     <title>{title}</title>
     <ClientRouter />
   </head>
