@@ -56,15 +56,24 @@ Portfolio entries are in `src/content/portfolio/<category>/<slug>/index.md`. Eac
 - Develop on `claude/<short-topic>` branches off `main`
 - Open PRs as ready (not draft) once pushed
 - Don't push to `main` directly
-- Three recent merged PRs (May 2026): #2 Safari crash fix, #3 LCP idle-gate removal, #4 landing GLB optimization
+- Recent merged PRs (May 2026): #2 Safari crash fix, #3 LCP idle-gate removal, #4 landing GLB optimization, #5 add CLAUDE.md, #6 audit cleanup (OG meta + scoped overflow + Welcome.astro deletion), #7 cache-control headers
+
+## Static asset caching
+
+`public/_headers` sets long-lived cache policies for Cloudflare Pages:
+`_astro/*` is `immutable` (content-hashed), `models/*` and `draco/*` get
+30-day max-age + 1-day stale-while-revalidate. If you add a new long-lived
+asset directory, add a matching block.
 
 ## Outstanding optimization punch list
 
-From the audit, items deferred for later:
-- Lazy-load DRACO decoder (needs verification that Vite already page-scopes the import — agent's claim was suspect)
-- `astro:assets` `<Image>` on `photography.astro`, `projects/drawing/[id].astro`, `projects/lighting-design/[id].astro` (raw `<img>` tags, missing webp + lazy)
-- Add a real `og:image` (1200×630 hero shot). Layout has the OG/Twitter tags wired; just needs an image file + a `<meta property="og:image">` line.
-- Long inline `<style>` in `resume.astro` could become sub-components
+- Add a real `og:image` (1200×630 hero shot). `Layout.astro` has the OG/Twitter tags wired; just needs the asset + a `<meta property="og:image">` line.
+- Long inline `<style>` in `resume.astro` could become sub-components.
+
+Audit items investigated and confirmed *not* worth doing:
+- **Lazy-load DRACO decoder.** Verified by inspecting `dist/`: the 642 KB ModelViewer bundle (Three.js + GLTFLoader + DRACOLoader) is already page-scoped by Astro/Vite. `/contact`, `/resume`, etc. ship zero 3D code. The DRACO WASM in `public/draco/` is only fetched at runtime when GLTFLoader actually decodes a model.
+- **`astro:assets` `<Image>` migration on photo pages.** `photography.astro`, `projects/drawing/[id].astro`, and `projects/lighting-design/[id].astro` already use `<Image>` correctly. Remaining raw `<img>` tags are lightbox modals with dynamically-set `src` (legitimate plain-img use).
+- **Audio-mastering listener leak.** `<script>` modules are deduped by Astro across navigations and audio-element listeners die with the element on page swap. Not a real leak.
 
 ## Things to avoid
 
